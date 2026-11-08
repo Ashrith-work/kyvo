@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VendorIQ — vendor onboarding automation</title>
+<meta name="description" content="VendorIQ scores a vendor submission (form + PDFs) as APPROVED / PENDING / REJECTED with visible reasoning, evidence and an audit trail. Deterministic Python rules — no LLM, no API key." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>" />
+<style>
+  :root{
+    --bg:#0b1020; --bg2:#0f1629; --panel:#121b33; --panel2:#16203c;
+    --line:#223052; --text:#e7ecf7; --muted:#9fb0cf; --faint:#6f80a3;
+    --brand:#4f8cff; --brand2:#7aa7ff;
+    --green:#30c08a; --amber:#f0a93b; --red:#ef5f6b;
+    --radius:16px; --maxw:1080px;
+    --shadow:0 10px 40px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:
+      radial-gradient(1100px 600px at 80% -10%, rgba(79,140,255,.16), transparent 60%),
+      radial-gradient(900px 500px at -10% 10%, rgba(48,192,138,.10), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--brand2); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 20px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+  /* nav */
+  header.nav{position:sticky; top:0; z-index:20; backdrop-filter:blur(10px);
+    background:rgba(11,16,32,.7); border-bottom:1px solid var(--line)}
+  .nav-inner{display:flex; align-items:center; justify-content:space-between; height:62px}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.2px}
+  .brand .logo{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--brand),#2f6fe0); box-shadow:var(--shadow); font-size:18px}
+  .brand small{display:block; font-weight:500; color:var(--faint); font-size:11px; margin-top:-2px}
+  .nav a.navlink{color:var(--muted); font-weight:600; font-size:14px; margin-left:22px}
+  .nav a.navlink:hover{color:var(--text); text-decoration:none}
+  .gh{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);
+    padding:8px 14px;border-radius:10px;color:var(--text);font-weight:600;font-size:14px;background:var(--panel)}
+  .gh:hover{border-color:var(--brand);text-decoration:none}
+  @media(max-width:720px){.nav a.navlink{display:none}}
+
+  /* hero */
+  .hero{padding:72px 0 40px; text-align:center}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;
+    color:var(--brand2);background:rgba(79,140,255,.1);border:1px solid rgba(79,140,255,.28);
+    padding:6px 13px;border-radius:999px;margin-bottom:22px}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(48,192,138,.2)}
+  h1{font-size:clamp(34px,6vw,58px); line-height:1.05; margin:.1em 0 .25em; letter-spacing:-.5px}
+  h1 .grad{background:linear-gradient(120deg,#fff,var(--brand2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:clamp(16px,2.4vw,20px); color:var(--muted); max-width:720px; margin:0 auto 28px}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:9px;padding:13px 22px;border-radius:12px;font-weight:700;font-size:15px}
+  .btn.primary{background:linear-gradient(135deg,var(--brand),#2f6fe0);color:#fff;box-shadow:var(--shadow)}
+  .btn.primary:hover{text-decoration:none;filter:brightness(1.07)}
+  .btn.ghost{border:1px solid var(--line);color:var(--text);background:var(--panel)}
+  .btn.ghost:hover{text-decoration:none;border-color:var(--brand)}
+  .note{margin-top:16px;font-size:13px;color:var(--faint)}
+
+  /* decision chips */
+  .verdicts{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:46px 0 8px}
+  .vcard{flex:1 1 220px;max-width:300px;background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);padding:20px;text-align:left}
+  .vcard .vh{display:flex;align-items:center;gap:10px;font-weight:800;font-size:15px}
+  .vdot{width:11px;height:11px;border-radius:50%}
+  .vcard p{margin:10px 0 0;color:var(--muted);font-size:13.5px}
+  .g{color:var(--green)} .a{color:var(--amber)} .r{color:var(--red)}
+  .bg-g{background:var(--green)} .bg-a{background:var(--amber)} .bg-r{background:var(--red)}
+
+  /* sections */
+  section{padding:56px 0}
+  .eyebrow{color:var(--brand2);font-weight:700;font-size:13px;letter-spacing:.14em;text-transform:uppercase}
+  h2{font-size:clamp(24px,3.6vw,34px);margin:.3em 0 .4em;letter-spacing:-.3px}
+  .sub{color:var(--muted);max-width:680px;margin:0 0 30px}
+
+  .grid{display:grid;gap:16px}
+  .cols-3{grid-template-columns:repeat(3,1fr)}
+  .cols-2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:820px){.cols-3,.cols-2{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .card h3{margin:.1em 0 .4em;font-size:17px}
+  .card p{margin:0;color:var(--muted);font-size:14px}
+  .ico{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:20px;
+    background:rgba(79,140,255,.12);border:1px solid rgba(79,140,255,.25);margin-bottom:14px}
+
+  /* pipeline */
+  .pipe{display:flex;flex-wrap:wrap;gap:8px}
+  .stage{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:10px;padding:9px 13px;font-size:13.5px;font-weight:600}
+  .stage .n{width:22px;height:22px;border-radius:50%;background:rgba(79,140,255,.18);color:var(--brand2);
+    display:grid;place-items:center;font-size:12px;font-weight:700}
+  .arrow{color:var(--faint);align-self:center}
+
+  /* table */
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
+  table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+  th,td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--line)}
+  th{color:var(--faint);font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+  tr:last-child td{border-bottom:none}
+  td .tag{font-weight:700;font-size:12.5px;padding:3px 10px;border-radius:999px;white-space:nowrap}
+  .tag.g{background:rgba(48,192,138,.14);color:var(--green)}
+  .tag.a{background:rgba(240,169,59,.14);color:var(--amber)}
+
+  /* stack / limits */
+  .chips{display:flex;flex-wrap:wrap;gap:9px}
+  .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:13px;font-weight:600;color:var(--muted)}
+  ul.clean{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+  ul.clean li{padding-left:26px;position:relative;color:var(--muted);font-size:14px}
+  ul.clean li:before{content:"→";position:absolute;left:0;color:var(--brand2);font-weight:700}
+
+  footer{border-top:1px solid var(--line);padding:34px 0;color:var(--faint);font-size:13px}
+  .foot-inner{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center}
+  .disc{background:rgba(240,169,59,.07);border:1px solid rgba(240,169,59,.25);border-radius:12px;
+    padding:14px 18px;color:#e7d3ad;font-size:13px;margin-top:22px}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <div class="brand">
+      <span class="logo">🧾</span>
+      <span>VendorIQ<small>vendor onboarding automation</small></span>
+    </div>
+    <nav>
+      <a class="navlink" href="#how">How it works</a>
+      <a class="navlink" href="#policy">Decision policy</a>
+      <a class="navlink" href="#scenarios">Scenarios</a>
+      <a class="gh" href="https://github.com/Ashrith-work/vendoriq" target="_blank" rel="noopener">★ GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero wrap">
+    <span class="pill"><span class="dot"></span> Deterministic · no LLM · no API key</span>
+    <h1>Turn a vendor submission into a<br><span class="grad">defensible decision</span>.</h1>
+    <p class="lede">VendorIQ accepts a vendor's form and PDF documents and returns
+      <b>APPROVED / PENDING / REJECTED</b> — with visible reasoning, the exact evidence behind every
+      check, a full audit trail, and an editable follow-up email draft. Pure Python rules decide; nothing is a black box.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/Ashrith-work/vendoriq" target="_blank" rel="noopener">View the code on GitHub</a>
+      <a class="btn ghost" href="#how">See how it works</a>
+    </div>
+    <p class="note">A Zamp PS-2 case study · independent build · all data fictional</p>
+
+    <div class="verdicts">
+      <div class="vcard">
+        <div class="vh g"><span class="vdot bg-g"></span> APPROVED</div>
+        <p>Every blocking check passes — all required docs present, types match, formats valid, cross-documents agree, no duplicate.</p>
+      </div>
+      <div class="vcard">
+        <div class="vh a"><span class="vdot bg-a"></span> PENDING</div>
+        <p>Anything that blocks auto-approval: missing or wrong document, unreadable scan, invalid format, a name/bank mismatch, or an unverifiable country.</p>
+      </div>
+      <div class="vcard">
+        <div class="vh r"><span class="vdot bg-r"></span> REJECTED</div>
+        <p>Only a written blocklist hit, or a human reviewer's confirmed rejection with a mandatory comment. Fuzzy name differences never reject.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="wrap">
+    <span class="eyebrow">How it works</span>
+    <h2>One pipeline, one event per real stage</h2>
+    <p class="sub">A single entry point drives both the UI and the tests. Each stage emits a real result as it runs —
+      no timers, no theatre. The Live Run view renders them as they happen.</p>
+    <div class="pipe">
+      <span class="stage"><span class="n">1</span> Submission received</span><span class="arrow">›</span>
+      <span class="stage"><span class="n">2</span> Document intake</span><span class="arrow">›</span>
+      <span class="stage"><span class="n">3</span> Classification</span><span class="arrow">›</span>
+      <span class="stage"><span class="n">4</span> Field extraction</span><span class="arrow">›</span>
+      <span class="stage"><span class="n">5</span> Validation</span><span class="arrow">›</span>
+      <span class="stage"><span class="n">6</span> Cross-doc reconciliation</span><span class="arrow">›</span>
+      <span class="stage"><span class="n">7</span> Risk assessment</span><span class="arrow">›</span>
+      <span class="stage"><span class="n">8</span> Decision</span><span class="arrow">›</span>
+      <span class="stage"><span class="n">9</span> Email draft</span><span class="arrow">›</span>
+      <span class="stage"><span class="n">10</span> Audit persistence</span>
+    </div>
+
+    <div class="grid cols-3" style="margin-top:26px">
+      <div class="card"><div class="ico">📄</div><h3>Reads the documents</h3>
+        <p>pdfplumber pulls text, detects unreadable scans, classifies each file with a weighted keyword model, and extracts fields by regex — keeping the page and evidence for every value.</p></div>
+      <div class="card"><div class="ico">🔎</div><h3>Checks them against rules</h3>
+        <p>Conditional required fields, India-specific formats, a country registry, cross-document reconciliation, duplicate detection and a blocklist — each producing PASS / FAIL / WARN.</p></div>
+      <div class="card"><div class="ico">🧾</div><h3>Decides and records</h3>
+        <p>A deterministic three-status policy turns the checks into a verdict, drafts a follow-up email (never auto-sent), and writes the whole run to a SQLite audit trail.</p></div>
+    </div>
+  </section>
+
+  <section id="policy" class="wrap">
+    <span class="eyebrow">Decision policy · VIQ-POLICY-1.0</span>
+    <h2>Conservative by design</h2>
+    <p class="sub">The policy never invents a reason to reject, and never passes something it couldn't actually verify — uncertainty routes to a human, not to auto-approval.</p>
+    <div class="grid cols-3">
+      <div class="card"><div class="vh g" style="margin-bottom:8px"><span class="vdot bg-g"></span> Approve</div>
+        <p>Only when <b>every</b> applicable blocking check is PASS. One miss is enough to hold.</p></div>
+      <div class="card"><div class="vh a" style="margin-bottom:8px"><span class="vdot bg-a"></span> Hold (pending)</div>
+        <p>Any FAIL, WARN or NOT_CHECKED that blocks approval — surfaced with its evidence so a reviewer can act fast.</p></div>
+      <div class="card"><div class="vh r" style="margin-bottom:8px"><span class="vdot bg-r"></span> Reject</div>
+        <p>Only a written blocklist hit or a reviewer's confirmed rejection. No fuzzy guesswork.</p></div>
+    </div>
+  </section>
+
+  <section id="scenarios" class="wrap">
+    <span class="eyebrow">Demo scenarios</span>
+    <h2>Nine bundled cases, each with an expected outcome</h2>
+    <p class="sub">The repository ships a generator and nine fictional scenarios covering the common real-world edge cases of vendor onboarding.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>#</th><th>Scenario</th><th>Expected</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Domestic PAN + GST, everything consistent</td><td><span class="tag g">APPROVED</span></td></tr>
+          <tr><td>2</td><td>Invoice uploaded as a GST certificate</td><td><span class="tag a">PENDING · wrong document</span></td></tr>
+          <tr><td>3</td><td>Bank account holder ≠ legal name</td><td><span class="tag a">PENDING · bank mismatch</span></td></tr>
+          <tr><td>4</td><td>Germany submission with an Indian PAN-format tax ID</td><td><span class="tag a">PENDING · country conflict</span></td></tr>
+          <tr><td>5</td><td>Duplicate PAN / GSTIN (run after #1)</td><td><span class="tag a">PENDING · duplicate</span></td></tr>
+          <tr><td>6</td><td>Domestic PAN without GST (LLP)</td><td><span class="tag g">APPROVED</span></td></tr>
+          <tr><td>7</td><td>International — US EIN</td><td><span class="tag g">APPROVED</span></td></tr>
+          <tr><td>8</td><td>Brazil (no rule configured)</td><td><span class="tag a">PENDING · not checked</span></td></tr>
+          <tr><td>9</td><td>Scanned, image-only bank proof</td><td><span class="tag a">PENDING · unreadable</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="grid cols-2">
+      <div>
+        <span class="eyebrow">Built with</span>
+        <h2 style="margin-bottom:18px">A small, honest stack</h2>
+        <div class="chips">
+          <span class="chip">Python</span><span class="chip">Streamlit</span><span class="chip">pdfplumber</span>
+          <span class="chip">pandas</span><span class="chip">reportlab</span><span class="chip">SQLite</span>
+          <span class="chip">pytest · 24 offline tests</span><span class="chip">GitHub Actions CI</span>
+        </div>
+        <p class="sub" style="margin-top:20px">No LLM, no external API, no secret keys — the whole thing runs offline and every decision is reproducible from the rules.</p>
+        <a class="btn primary" href="https://github.com/Ashrith-work/vendoriq" target="_blank" rel="noopener">Read the source →</a>
+      </div>
+      <div>
+        <span class="eyebrow">Stated honestly</span>
+        <h2 style="margin-bottom:18px">What it does <i>not</i> do</h2>
+        <ul class="clean">
+          <li>Format and consistency checks only — no verification of GST/PAN registry status, sanctions or bank-account ownership.</li>
+          <li>Country rules cover US, UK, DE, SG, AE (+ India for domestic). Anything else is marked not-checked and held, never falsely passed.</li>
+          <li>No OCR — scanned/image PDFs are preserved, flagged unreadable, and routed to a human.</li>
+          <li>Extraction is keyword/regex-based and tuned to the synthetic documents; real layouts need more patterns.</li>
+          <li>Emails are drafted, never sent. Single-user demo — no authentication or RBAC. Not production-hardened.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="disc">⚠️ Independent build — not an official IIT Madras or Zamp product. Every vendor, document and identifier shown is fictional.</div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot-inner">
+    <div class="brand"><span class="logo" style="width:28px;height:28px;font-size:15px">🧾</span> <span>VendorIQ</span></div>
+    <div>Source &amp; full write-up on <a href="https://github.com/Ashrith-work/vendoriq" target="_blank" rel="noopener">GitHub</a></div>
+  </div>
+</footer>
+
+</body>
+</html>
