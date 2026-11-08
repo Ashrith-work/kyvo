@@ -1,4 +1,4 @@
-"""VendorIQ - Streamlit UI. Run:  streamlit run app.py"""
+"""Verivend - Streamlit UI. Run:  streamlit run app.py"""
 import os, json, shutil, datetime as dt
 import pandas as pd
 import streamlit as st
@@ -8,12 +8,12 @@ from config import *
 from sample_data import generate as gen
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.environ.get("VENDORIQ_DB", os.path.join(BASE, "data", "vendoriq.db"))
-UPLOAD_DIR = os.environ.get("VENDORIQ_UPLOADS", os.path.join(BASE, "uploads"))
+DB_PATH = os.environ.get("VERIVEND_DB", os.path.join(BASE, "data", "verivend.db"))
+UPLOAD_DIR = os.environ.get("VERIVEND_UPLOADS", os.path.join(BASE, "uploads"))
 SAMPLE_DIR = os.path.join(BASE, "sample_data")
 ICON = {"APPROVED": "🟢", "PENDING": "🟠", "REJECTED": "🔴", "PASS": "✅", "FAIL": "❌", "WARN": "⚠️", "NOT_CHECKED": "➖"}
 
-st.set_page_config(page_title="VendorIQ", page_icon="🧾", layout="wide")
+st.set_page_config(page_title="Verivend", page_icon="🧾", layout="wide")
 
 @st.cache_resource
 def get_conn():
@@ -27,7 +27,7 @@ SCENARIOS = gen.load_scenarios(SAMPLE_DIR)
 PAGES = ["Overview", "New Submission", "Live Run", "Verification Detail", "Review Queue", "History"]
 if "goto" in st.session_state:                      # programmatic navigation (set before the radio is created)
     st.session_state["nav"] = st.session_state.pop("goto")
-st.sidebar.title("🧾 VendorIQ")
+st.sidebar.title("🧾 Verivend")
 st.sidebar.caption("Vendor onboarding automation · independent build for the Zamp PS-2 case study. Deterministic rules; no LLM required.")
 page = st.sidebar.radio("Navigate", PAGES, key="nav")
 with st.sidebar.expander("Demo database"):
@@ -249,7 +249,7 @@ def page_detail():
     with t[5]:
         dr = db.one(conn, "SELECT * FROM communication_drafts WHERE submission_id=? ORDER BY id DESC LIMIT 1", (sid,))
         if dr:
-            st.caption(f"To: {dr['to_addr']} · type: {dr['draft_type']} · sent: {bool(dr['sent'])} (VendorIQ never sends automatically)")
+            st.caption(f"To: {dr['to_addr']} · type: {dr['draft_type']} · sent: {bool(dr['sent'])} (Verivend never sends automatically)")
             subj = st.text_input("Subject", dr["subject"], key=f"subj{dr['id']}")
             body = st.text_area("Body", dr["body"], height=320, key=f"body{dr['id']}")
             by = st.text_input("Edited by", key=f"by{dr['id']}")

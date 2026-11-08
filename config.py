@@ -1,7 +1,7 @@
 """Central configuration: policy version, document types, country registry."""
 import re
 
-POLICY_VERSION = "VIQ-POLICY-1.0"
+POLICY_VERSION = "VV-POLICY-1.0"
 MAX_UPLOAD_MB = 5                       # deliberate demo constraint (not inherited from IITM portal)
 ALLOWED_EXT = {".pdf", ".png", ".jpg", ".jpeg"}
 MIN_TEXT_CHARS = 40                     # below this a PDF is treated as scanned / unreadable

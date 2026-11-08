@@ -1,10 +1,10 @@
-# VendorIQ — vendor onboarding automation (Zamp PS-2 case study)
+# Verivend — vendor onboarding automation (Zamp PS-2 case study)
 
-[![CI](https://github.com/Ashrith-work/vendoriq/actions/workflows/ci.yml/badge.svg)](https://github.com/Ashrith-work/vendoriq/actions/workflows/ci.yml)
+[![CI](https://github.com/Ashrith-work/verivend/actions/workflows/ci.yml/badge.svg)](https://github.com/Ashrith-work/verivend/actions/workflows/ci.yml)
 
-**🌐 Website: [ashrith-work.github.io/vendoriq](https://ashrith-work.github.io/vendoriq/)** — project overview, pipeline, decision policy and demo scenarios.
+**🌐 Website: [ashrith-work.github.io/verivend](https://ashrith-work.github.io/verivend/)** — project overview, pipeline, decision policy and demo scenarios.
 
-[![VendorIQ website](docs/screenshot.png)](https://ashrith-work.github.io/vendoriq/)
+[![Verivend website](docs/screenshot.png)](https://ashrith-work.github.io/verivend/)
 
 Independent build (not an official IIT Madras or Zamp product). Accepts a vendor submission (form + PDFs) and returns
 **APPROVED / PENDING / REJECTED** with visible reasoning, evidence, an audit trail and an editable follow-up email draft.
@@ -12,7 +12,7 @@ Deterministic Python rules decide; **no LLM and no API key are needed**. All dat
 
 ## Run (Windows PowerShell)
 ```powershell
-cd vendoriq
+cd verivend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -20,8 +20,8 @@ python sample_data\generate.py        # optional: regenerates the 9 fictional sc
 streamlit run app.py                  # opens http://localhost:8501
 python -m pytest -q                   # 24 tests, offline
 ```
-macOS/Linux: `source .venv/bin/activate` instead of the Activate line. A fresh SQLite DB is created at `data/vendoriq.db` on first start
-(sidebar → *Demo database* → reset). Env overrides: `VENDORIQ_DB`, `VENDORIQ_UPLOADS`.
+macOS/Linux: `source .venv/bin/activate` instead of the Activate line. A fresh SQLite DB is created at `data/verivend.db` on first start
+(sidebar → *Demo database* → reset). Env overrides: `VERIVEND_DB`, `VERIVEND_UPLOADS`.
 
 ## How it works
 `workflow.run_workflow` is the single entry point used by both the UI and the tests. It yields one event per **real** stage:
@@ -34,7 +34,7 @@ Risk assessment → Decision → Email draft → Audit persistence. The Live Run
 | `workflow.py` | Stage orchestration, re-run, reviewer actions |
 | `extraction.py` | pdfplumber text, unreadable-scan detection, weighted keyword classifier, regex field extraction with page/evidence |
 | `validation.py` | Conditional fields, India rules, country registry, cross-document reconciliation, duplicates, blocklist |
-| `decision_engine.py` | Deterministic three-status policy (`VIQ-POLICY-1.0`) |
+| `decision_engine.py` | Deterministic three-status policy (`VV-POLICY-1.0`) |
 | `communication.py` | Email drafts (`sent=0`, never auto-sent) |
 | `database.py` / `config.py` | SQLite schema + audit; policy, patterns, country registry |
 | `sample_data/` | Generator + 9 scenarios; `tests/` | unit + end-to-end tests |
