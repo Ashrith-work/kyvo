@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/Ashrith-work/vendoriq/actions/workflows/ci.yml/badge.svg)](https://github.com/Ashrith-work/vendoriq/actions/workflows/ci.yml)
 
+**🌐 Website: [ashrith-work.github.io/vendoriq](https://ashrith-work.github.io/vendoriq/)** — project overview, pipeline, decision policy and demo scenarios.
+
 Independent build (not an official IIT Madras or Zamp product). Accepts a vendor submission (form + PDFs) and returns
 **APPROVED / PENDING / REJECTED** with visible reasoning, evidence, an audit trail and an editable follow-up email draft.
 Deterministic Python rules decide; **no LLM and no API key are needed**. All data is fictional.
