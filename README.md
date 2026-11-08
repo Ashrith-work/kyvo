@@ -1,5 +1,7 @@
 # VendorIQ — vendor onboarding automation (Zamp PS-2 case study)
 
+[![CI](https://github.com/Ashrith-work/vendoriq/actions/workflows/ci.yml/badge.svg)](https://github.com/Ashrith-work/vendoriq/actions/workflows/ci.yml)
+
 **🔗 Live demo: [vendoriq.streamlit.app](https://vendoriq.streamlit.app)** — hosted on Streamlit Community Cloud (sample data resets on reboot).
 
 Independent build (not an official IIT Madras or Zamp product). Accepts a vendor submission (form + PDFs) and returns
