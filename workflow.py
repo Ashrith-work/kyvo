@@ -174,10 +174,17 @@ def _risk_inputs(conn, sid, vendor_id, f):
     return dups, blocked, shared
 
 def seed_demo(conn):
-    """Idempotent demo seed: one fictional blocklisted bank account (E3b) so the demo has a REJECTED outcome."""
-    acct = "HDFC0009999:9999000011112222"
-    if not db.one(conn, "SELECT id FROM policy_blocklist WHERE id_type='BANK_ACCT' AND id_value=?", (acct,)):
-        add_blocklist(conn, "BANK_ACCT", acct, "Account rejected for payment fraud (fictional demo entry).", "compliance.seed")
+    """Idempotent demo seed: load the fictional policy blocklist (E3b) from policy/blocklist.yaml."""
+    import yaml
+    try:
+        with open(BLOCKLIST_PATH, "rb") as fh:
+            entries = (yaml.safe_load(fh.read().decode("utf-8")) or {}).get("entries", [])
+    except FileNotFoundError:
+        entries = []
+    for e in entries:
+        val = str(e["id_value"]).strip().upper()
+        if not db.one(conn, "SELECT id FROM policy_blocklist WHERE id_type=? AND id_value=?", (e["id_type"], val)):
+            add_blocklist(conn, e["id_type"], val, e["reason"], e.get("added_by", "compliance.seed"))
 
 def run_workflow(conn, form: dict, files: dict, upload_dir: str, actor: str = "system", vendor_row_id=None):
     """Generator of stage events. files: {expected_type: (filename, bytes)}. Final event has stage='complete'.

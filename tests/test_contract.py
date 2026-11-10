@@ -32,7 +32,9 @@ def test_decision_json_matches_contract(env):
               "run_no", "decided_at", "reasons", "requests_to_vendor", "next_action"):
         assert k in rec, k
     assert rec["status"] == "PENDING" and rec["waiting_on"] == "VENDOR"
-    assert rec["policy_version"] == "KYVO-POLICY-1.1"
+    import config
+    assert rec["policy_version"] == config.POLICY_VERSION
+    assert rec["policy_version"].startswith("KYVO-POLICY-") and "+" in rec["policy_version"]
     assert rec["requests_to_vendor"] and all({"id", "about", "ask", "status"} <= set(x) for x in rec["requests_to_vendor"])
     assert all({"rule_id", "label", "status", "severity", "evidence", "source", "provenance"} <= set(x) for x in rec["reasons"])
 

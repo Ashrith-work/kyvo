@@ -1,19 +1,16 @@
 """Deterministic three-status policy. No LLM. APPROVED only if clean; PENDING for any uncertainty;
 REJECTED only for a written policy disqualification (blocklist) or a human reviewer's confirmed rejection."""
-from config import POLICY_VERSION
+from config import POLICY_VERSION, RISK_RANK, RANK_TO_RISK, flag_is_reviewer
 from database import now
 
-SEV_RANK = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
-
-# Blocking items of these kinds need a person's judgement, so the case waits on a REVIEWER, not the vendor.
-REVIEWER_FLAGS = {"NAME_MISMATCH", "DUPLICATE_IDENTIFIER", "BANK_SHARED", "BANK_CHANGE", "POLICY_BLOCKLIST"}
+SEV_RANK = RISK_RANK   # severity name -> rank, from policy/kyvo_policy.yaml (risk_weights)
 
 def compute_waiting_on(results: list, status: str) -> str:
-    """NONE when approved/clean, REVIEWER when any blocking item needs human judgement, else VENDOR."""
+    """NONE when approved/clean, REVIEWER when any blocking item routes to a reviewer in flags.yaml, else VENDOR."""
     blocking = [r for r in results if r["blocking"] and r["status"] != "PASS"]
     if status == "APPROVED" or not blocking:
         return "NONE"
-    if status == "REJECTED" or any(r.get("flag_code") in REVIEWER_FLAGS for r in blocking):
+    if status == "REJECTED" or any(flag_is_reviewer(r.get("flag_code")) for r in blocking):
         return "REVIEWER"
     return "VENDOR"
 
@@ -48,7 +45,7 @@ def decide(results: list) -> dict:
     else:
         status = "APPROVED"
     top = max((SEV_RANK[r["severity"]] for r in blocking), default=0)
-    risk = {0: "LOW", 1: "LOW", 2: "MEDIUM", 3: "HIGH"}[top]
+    risk = RANK_TO_RISK[top]
     if status == "APPROVED":
         reasons = ["All applicable fields and documents are present, document types match, formats pass, "
                    "cross-document checks agree and no duplicate was found."]
