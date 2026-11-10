@@ -21,10 +21,14 @@
   .scn .btn{font-weight:500;font-size:14px}
   .hint{color:var(--muted);font-size:13px;margin:6px 0 0}
   .result{margin-top:22px}
-  .stage{display:flex;align-items:center;gap:10px;padding:5px 0;color:var(--muted);opacity:0;transform:translateY(4px);
-         transition:opacity .25s,transform .25s}
-  .stage.on{opacity:1;transform:none;color:var(--ink)}
-  .stage .tick{width:20px;height:20px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;font-size:13px;flex:none}
+  .vhead{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600;margin:4px 0 14px}
+  .step{display:flex;align-items:center;gap:11px;padding:7px 0;opacity:.4;transform:translateY(3px);
+        transition:opacity .25s,transform .25s}
+  .step.on{opacity:1;transform:none}
+  .step .lab{color:var(--muted)} .step.done .lab{color:var(--ink)}
+  .ic{width:20px;height:20px;flex:none;display:grid;place-items:center;border-radius:50%}
+  .ic.tick{background:var(--ok-bg);color:var(--ok);font-size:13px}
+  .spin-sm{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:sp .7s linear infinite}
   .verdict{margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
   .verdict h2{margin:0 0 6px}
   .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-3px}
@@ -121,47 +125,64 @@ async function gatherForm(){
   return {form, documents: docs};
 }
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const STEP = {
+  "Submission received": "Receiving the submission",
+  "Document intake": "Reading the uploaded documents",
+  "Classification": "Classifying each document",
+  "Field extraction": "Extracting the fields",
+  "Validation": "Validating formats and required fields",
+  "Cross-document reconciliation": "Reconciling the form against the documents",
+  "Risk assessment": "Checking duplicates, shared and blocklisted accounts",
+  "Decision": "Reaching a decision",
+  "Email draft": "Drafting the vendor email",
+  "Audit persistence": "Writing the audit trail"
+};
+const FALLBACK = Object.keys(STEP);
+
 async function call(payload){
+  document.querySelectorAll('button.btn').forEach(b => b.disabled = true);
   const box = el('result'); box.hidden = false;
-  box.innerHTML = '<p><span class="spin"></span> Running the verification engine...</p>';
-  let data;
-  try{
-    const res = await fetch('/api/verify', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload)});
-    data = await res.json();
-  }catch(e){ box.innerHTML = '<p>Could not reach the engine: '+esc(e.message)+'</p>'; return; }
-  if(data.error){ box.innerHTML = '<p>Engine error: '+esc(data.error)+'</p>'; return; }
-  render(data);
+  box.innerHTML = '<div class="vhead"><span class="spin-sm"></span><span id="htitle">Verifying the submission...</span></div><div id="steps"></div>';
+  const steps = el('steps');
+  const data = await fetch('/api/verify', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload)})
+      .then(r => r.json()).catch(e => ({error: e.message}));
+  if(!data || data.error){
+    box.innerHTML = '<p>Engine error: '+esc((data && data.error) || 'no response')+'</p>';
+    document.querySelectorAll('button.btn').forEach(b => b.disabled = false); return;
+  }
+  const stages = (data.stages && data.stages.length) ? data.stages : FALLBACK;
+  for(let i = 0; i < stages.length; i++){
+    const row = document.createElement('div'); row.className = 'step';
+    row.innerHTML = '<span class="ic spin-sm"></span><span class="lab">'+esc(STEP[stages[i]] || stages[i])+'</span>';
+    steps.appendChild(row);
+    await sleep(60); row.classList.add('on');
+    await sleep(300); row.classList.add('done');
+    const ic = row.querySelector('.ic'); if(ic) ic.outerHTML = '<span class="ic tick">✓</span>';
+  }
+  const hsp = box.querySelector('.vhead .spin-sm'); if(hsp) hsp.remove();
+  const ht = el('htitle'); if(ht) ht.textContent = 'Verification complete';
+  await sleep(250);
+  renderVerdict(box, data);
+  document.querySelectorAll('button.btn').forEach(b => b.disabled = false);
 }
 
-function render(data){
-  const box = el('result');
+function renderVerdict(box, data){
   const d = data.decision;
-  box.innerHTML = '<h2>Pipeline</h2><div id="stages"></div>';
-  const stagesEl = el('stages');
-  data.stages.forEach((s,i) => {
-    const row = document.createElement('div'); row.className='stage';
-    row.innerHTML = '<span class="tick">✓</span>'+esc(s);
-    stagesEl.appendChild(row);
-    setTimeout(()=>row.classList.add('on'), 90*i);
-  });
-  setTimeout(()=>{
-    const cls = d.status;
-    let h = '<div class="verdict"><h2><span class="pill '+cls+'">'+esc(d.status)+'</span> '+
-      'waiting on '+esc(d.waiting_on)+', risk '+esc(d.risk_level)+
-      (d.payment_hold? ', payments on hold':'')+'</h2>'+
-      '<p class="muted small">Policy '+esc(d.policy_version)+'</p>';
-    h += '<h3>Identity assurance</h3><table><tr><th>Identity</th><th>Level</th><th>Not verified</th></tr>';
-    for(const [k,v] of Object.entries(d.assurance||{}))
-      h += '<tr><td>'+esc(k.replace(/_/g,' '))+'</td><td>'+esc(v.level)+'</td><td class="small">'+esc((v.not_verified||[]).join('; '))+'</td></tr>';
-    h += '</table>';
-    if((d.reasons||[]).length){ h+='<h3>Why</h3><ul>'; d.reasons.forEach(r=>h+='<li>['+esc(r.severity)+'] '+esc(r.label)+' ('+esc(r.assurance)+'): '+esc(r.evidence)+'</li>'); h+='</ul>'; }
-    if((d.requests_to_vendor||[]).length){ h+='<h3>Requests to the vendor</h3><ul>'; d.requests_to_vendor.forEach(q=>h+='<li>'+esc(q.ask)+'</li>'); h+='</ul>'; }
-    h += '<p class="muted small">'+esc(d.next_action)+'</p></div>';
-    h += '<h3>Checks</h3><table><tr><th>Check</th><th>Status</th><th>Assurance</th><th>Evidence</th></tr>';
-    (data.checks||[]).forEach(c=>h+='<tr><td>'+esc(c.label)+'</td><td>'+esc(c.status)+'</td><td>'+esc(c.assurance)+'</td><td class="small">'+esc(c.evidence)+'</td></tr>');
-    h += '</table>';
-    box.insertAdjacentHTML('beforeend', h);
-  }, 90*data.stages.length + 150);
+  let h = '<div class="verdict"><h2><span class="pill '+d.status+'">'+esc(d.status)+'</span> '+
+    'waiting on '+esc(d.waiting_on)+', risk '+esc(d.risk_level)+(d.payment_hold? ', payments on hold':'')+'</h2>'+
+    '<p class="muted small">Policy '+esc(d.policy_version)+'</p>';
+  h += '<h3>Identity assurance</h3><table><tr><th>Identity</th><th>Level</th><th>Not verified</th></tr>';
+  for(const [k,v] of Object.entries(d.assurance||{}))
+    h += '<tr><td>'+esc(k.replace(/_/g,' '))+'</td><td>'+esc(v.level)+'</td><td class="small">'+esc((v.not_verified||[]).join('; '))+'</td></tr>';
+  h += '</table>';
+  if((d.reasons||[]).length){ h+='<h3>Why</h3><ul>'; d.reasons.forEach(r=>h+='<li>['+esc(r.severity)+'] '+esc(r.label)+' ('+esc(r.assurance)+'): '+esc(r.evidence)+'</li>'); h+='</ul>'; }
+  if((d.requests_to_vendor||[]).length){ h+='<h3>Requests to the vendor</h3><ul>'; d.requests_to_vendor.forEach(q=>h+='<li>'+esc(q.ask)+'</li>'); h+='</ul>'; }
+  h += '<p class="muted small">'+esc(d.next_action)+'</p></div>';
+  h += '<h3>Checks</h3><table><tr><th>Check</th><th>Status</th><th>Assurance</th><th>Evidence</th></tr>';
+  (data.checks||[]).forEach(c=>h+='<tr><td>'+esc(c.label)+'</td><td>'+esc(c.status)+'</td><td>'+esc(c.assurance)+'</td><td class="small">'+esc(c.evidence)+'</td></tr>');
+  h += '</table>';
+  box.insertAdjacentHTML('beforeend', h);
 }
 
 document.getElementById('scenarios').addEventListener('click', e => {
