@@ -1,0 +1,10 @@
+# Treat generated/media fixtures as binary so Git never applies EOL (CRLF)
+# conversion to them. Without this, core.autocrlf=true corrupts the byte
+# offsets inside small text-based PDFs (xref/startxref), breaking parsing.
+*.pdf   binary
+*.jpg   binary
+*.jpeg  binary
+*.png   binary
+*.webp  binary
+*.gif   binary
+*.ico   binary
