@@ -59,3 +59,27 @@ def deliver(conn, sid, draft: dict, outbox_dir: str, sender: str = outputs.SENDE
     db.audit(conn, sid, "EMAIL_SENT" if sent else "EMAIL_QUEUED", "mailer",
              {"to": draft.get("to_addr"), "type": draft.get("draft_type"), "mode": mode, "file": os.path.basename(path)})
     return {"mode": mode, "path": path, "sent": sent, "draft_id": cid}
+
+
+def send_existing(conn, outbox_dir: str, draft_id=None, sid=None, sender: str = outputs.SENDER) -> dict:
+    """Send a draft the engine already stored (a decision follow-up, approval or rejection). Writes it to the
+    outbox and sends over SMTP only when enabled and the recipient is real. Does not create a new draft."""
+    if draft_id is not None:
+        d = db.one(conn, "SELECT * FROM communication_drafts WHERE id=?", (draft_id,))
+    else:
+        d = db.one(conn, "SELECT * FROM communication_drafts WHERE submission_id=? ORDER BY id DESC LIMIT 1", (sid,))
+    if not d:
+        return None
+    os.makedirs(outbox_dir, exist_ok=True)
+    path = os.path.join(outbox_dir, f"{(d['submission_id'] or 0):05d}_{d['id']:04d}_{d['draft_type'] or 'message'}.eml")
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(outputs.eml(dict(d), sender))
+    mode, sent = send_mode(), False
+    if mode == "smtp" and not never_send(d["to_addr"]):
+        _smtp_send(sender, dict(d))
+        sent = True
+        conn.execute("UPDATE communication_drafts SET sent=1 WHERE id=?", (d["id"],))
+        conn.commit()
+    db.audit(conn, d["submission_id"], "EMAIL_SENT" if sent else "EMAIL_QUEUED", "mailer",
+             {"to": d["to_addr"], "type": d["draft_type"], "mode": mode, "file": os.path.basename(path)})
+    return {"mode": mode, "path": path, "sent": sent, "draft_id": d["id"]}

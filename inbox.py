@@ -150,10 +150,18 @@ def escalate(conn, sid, ctx, kind, detail):
 
 
 # ---- handlers --------------------------------------------------------------------
+def _maybe_escalate(conn, sid, ctx):
+    d = db.latest_decision(conn, sid)
+    if d and d.get("waiting_on") == "REVIEWER" and d["status"] != "REJECTED":
+        escalate(conn, sid, ctx, "manual review required",
+                 f"{db.ref(sid)} is PENDING and waiting on a reviewer decision.")
+
+
 def handle_new_submission(conn, item, attachments, ctx):
     f = item.get("submission") or {k: v for k, v in item.items() if k not in SUBMISSION_NONFIELDS}
     res = wf.run_submission(conn, f, attachments, ctx.upload_dir)
     sid = res["submission_id"]
+    dec_draft = db.one(conn, "SELECT id FROM communication_drafts WHERE submission_id=? ORDER BY id DESC LIMIT 1", (sid,))
     srow = db.one(conn, "SELECT vendor_id FROM submissions WHERE id=?", (sid,))
     vid = db.issue_vendor_id(conn, srow["vendor_id"])
     ack = {"draft_type": "acknowledgement", "to_addr": (f.get("email") or ""),
@@ -163,7 +171,10 @@ def handle_new_submission(conn, item, attachments, ctx):
                     f"Your Vendor ID is {vid}. Please quote it in any reply.\n\n"
                     f"We will review your submission and write to you if anything is needed.")}
     mailer.deliver(conn, sid, ack, ctx.outbox_dir)
+    if dec_draft:                                   # the vendor also gets the decision email (follow-up or approval)
+        mailer.send_existing(conn, ctx.outbox_dir, draft_id=dec_draft["id"])
     outputs.write_outputs(conn, sid, ctx.out_root)
+    _maybe_escalate(conn, sid, ctx)
     return {"ref": db.ref(sid), "vendor_id": vid, "status": res["status"]}
 
 
@@ -180,7 +191,9 @@ def handle_vendor_reply(conn, item, attachments, ctx):
         return {"ref": db.ref(sid), "ignored": "unregistered_sender"}
     fields = item.get("fields") or None
     res = wf.vendor_response(conn, sid, field_changes=fields, files=attachments or None, upload_dir=ctx.upload_dir)
+    mailer.send_existing(conn, ctx.outbox_dir, sid=sid)   # reply to the vendor with the new decision
     outputs.write_outputs(conn, sid, ctx.out_root)
+    _maybe_escalate(conn, sid, ctx)
     return {"ref": db.ref(sid), "status": res["status"], "run_no": res["run_no"]}
 
 
@@ -209,7 +222,9 @@ def handle_change_request(conn, item, attachments, ctx):
             db.audit(conn, sid, "BANK_CHANGE_FROM_OTHER_ADDRESS", "system", {"from": sender, "registered": reg})
         res = wf.vendor_response(conn, sid, field_changes=new_values or None, files=attachments or None,
                                  upload_dir=ctx.upload_dir, bank_change=True, confirm_to=reg)
+        mailer.send_existing(conn, ctx.outbox_dir, sid=sid)
         outputs.write_outputs(conn, sid, ctx.out_root)
+        _maybe_escalate(conn, sid, ctx)
         return {"ref": db.ref(sid), "status": res["status"], "payment_hold": True, "waiting_on": res["waiting_on"]}
     escalate(conn, sid, ctx, f"{ctype or 'organisation'} change request",
              f"Vendor {vid} ({db.ref(sid)}) requested a {ctype or 'organisation'} change. Reason: {reason}. Values: {new_values}.")

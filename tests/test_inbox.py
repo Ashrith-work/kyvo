@@ -40,8 +40,8 @@ def test_new_submission_issues_vendor_id_and_acks(env, tmp_path):
     # acknowledgement written to the outbox, never sent
     emls = [f for f in os.listdir(d["outbox"]) if f.endswith(".eml")]
     assert emls
-    body = open(os.path.join(d["outbox"], emls[0]), encoding="utf-8").read()
-    assert "Vendor ID is V" in body and "X-Kyvo-Sent: no" in body
+    blob = "\n".join(open(os.path.join(d["outbox"], f), encoding="utf-8").read() for f in emls)
+    assert "Vendor ID is V" in blob and "X-Kyvo-Sent: no" in blob
     # moved to processed/, out/<ref>/ written
     assert os.path.isdir(os.path.join(str(tmp_path), "processed"))
     assert os.path.exists(os.path.join(d["out"], res[0]["ref"], "decision.json"))
