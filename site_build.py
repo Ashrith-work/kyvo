@@ -39,7 +39,7 @@ footer{color:var(--muted);font-size:13px;margin:40px 0 24px}
 @media(max-width:620px){nav a{margin-left:8px}}
 """
 
-NAV = ('<a href="index.html">Overview</a><a href="policy.html">Policy</a>'
+NAV = ('<a href="index.html">Overview</a><a href="verify.html">Verify</a><a href="policy.html">Policy</a>'
        '<a href="flags.html">Flags</a><a href="eval.html">Eval</a>')
 
 

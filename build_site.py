@@ -66,6 +66,14 @@ def build(public=os.path.join(HERE, "public")):
     site_build.build(conn, p["out"])
     shutil.rmtree(public, ignore_errors=True)
     shutil.copytree(os.path.join(p["out"], "site"), public)
+    # the interactive upload page (served by the api/verify.py serverless function) and its sample PDFs
+    shutil.copy(os.path.join(HERE, "web", "verify.html"), os.path.join(public, "verify.html"))
+    samples = os.path.join(public, "samples")
+    os.makedirs(samples, exist_ok=True)
+    for name in ("m_pan.pdf", "m_gst.pdf", "m_reg.pdf", "m_bank.pdf", "b_bank.pdf"):
+        src = os.path.join(HERE, "sample_data", name)
+        if os.path.exists(src):
+            shutil.copy(src, os.path.join(samples, name))
     print(f"Built {public} ({len(os.listdir(os.path.join(public, 'sub')))} submission pages)")
     return public
 
