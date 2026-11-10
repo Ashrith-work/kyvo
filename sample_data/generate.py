@@ -112,8 +112,11 @@ def build(out_dir):
     # E4: starts as a bank-holder mismatch (the first cheque is in a different name). The test drives the two resubmissions.
     pinnacle = D("Pinnacle Interiors Private Limited", "Pinnacle Interiors", "AAFCP6612R", "29", "U74110KA2018PTC077889", "HDFC Bank", "HDFC0002200", "12345678901", "Kiran Rao", "pinnacleint.example", "No. 7, Residency Road, Bengaluru, Karnataka 560025", "Karnataka", "Bengaluru", "560025", services="Interior fit-out services")
 
-    scen, P = [], lambda name, lines, **k: (make_pdf(os.path.join(out_dir, name), lines, **k), name)[1]
-    J = lambda name, lines, **k: (make_photo(os.path.join(out_dir, name), lines, **k), name)[1]
+    scen, _lines = [], {}
+    def P(name, lines, **k):
+        make_pdf(os.path.join(out_dir, name), lines, **k); _lines[name] = lines; return name
+    def J(name, lines, **k):
+        make_photo(os.path.join(out_dir, name), lines, **k); _lines[name] = lines; return name
     def add(id_, title, desc, expected, form, files, note=""):
         scen.append(dict(id=id_, title=title, description=desc, expected=expected, form=form, files=files, note=note))
 
@@ -175,7 +178,40 @@ def build(out_dir):
 
     with open(os.path.join(out_dir, "scenarios.json"), "w") as fh:
         json.dump(scen, fh, indent=1)
+    gt = {s["id"]: {t: doc_ground_truth(t, _lines[name]) for t, name in s["files"].items()} for s in scen}
+    with open(os.path.join(out_dir, "ground_truth.json"), "w") as fh:
+        json.dump(gt, fh, indent=1)
     return scen
+
+
+# ---- ground truth (the true value of every field each document prints) --------------
+def _labels(lines):
+    d = {}
+    for ln in lines:
+        if ":" in ln:
+            k, v = ln.split(":", 1)
+            d[k.strip().lower()] = v.strip()
+    return d
+
+# Keyed by expected document type; maps to the field names extraction.extract_fields emits.
+GT_FIELDS = {
+    "PAN_PROOF": lambda L: {"pan": L.get("pan"), "name": L.get("name")},
+    "GST_CERT": lambda L: {"gstin": L.get("gstin"), "pan": L.get("pan"), "name": L.get("legal name"), "trade_name": L.get("trade name")},
+    "COMPANY_REG": lambda L: {"name": L.get("company name") or L.get("llp name"),
+                              "reg_number": L.get("registration number") or L.get("llpin") or L.get("corporate identification number (cin)")},
+    "BANK_PROOF": lambda L: {"account_holder": L.get("account holder"), "account_number": L.get("account number"),
+                             "ifsc": L.get("ifsc"), "bank_name": L.get("bank"), "swift": L.get("swift/bic")},
+    "TAX_CERT": lambda L: {"tax_id": L.get("tax id"), "name": L.get("legal name")},
+    "TRC": lambda L: {"name": L.get("legal name"), "country": L.get("country of residence")},
+}
+
+def doc_ground_truth(doc_type, lines):
+    L = _labels(lines)
+    return {k: v for k, v in GT_FIELDS.get(doc_type, lambda L: {})(L).items() if v}
+
+def load_ground_truth(out_dir):
+    with open(os.path.join(out_dir, "ground_truth.json")) as fh:
+        return json.load(fh)
 
 def load_scenarios(out_dir):
     with open(os.path.join(out_dir, "scenarios.json")) as fh:
