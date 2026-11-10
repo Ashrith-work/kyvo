@@ -34,3 +34,7 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# generated workspaces / outputs
+workspace/
+out/
