@@ -14,7 +14,17 @@ STAGES = ["Submission received", "Document intake", "Classification", "Field ext
 def _safe_name(name):
     return re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(name or "file"))[:80]
 
+# Manual (vendor portal) field names accepted as aliases for Kyvo's internal keys.
+FORM_ALIASES = {"firm_name": "legal_name", "ownership": "entity_type", "business_reg_number": "reg_number",
+                "company_phone": "phone", "contact_name": "contact_person"}
+
 def normalize_form(form: dict) -> dict:
+    form = dict(form)
+    for alias, internal in FORM_ALIASES.items():          # accept manual field names; internal keys win if both present
+        if alias in form and not form.get(internal):
+            form[internal] = form.pop(alias)
+    if (form.get("address_line1") or form.get("address_line2")) and not form.get("address"):
+        form["address"] = ", ".join(x for x in (form.get("address_line1"), form.get("address_line2")) if x)
     f = {k: (v.strip() if isinstance(v, str) else v) for k, v in form.items()}
     for k in ("pan", "gstin", "ifsc", "swift", "tax_id", "reg_number"):
         if f.get(k):
