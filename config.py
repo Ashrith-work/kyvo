@@ -1,10 +1,15 @@
 """Central configuration: policy version, document types, country registry."""
 import re
 
-POLICY_VERSION = "VV-POLICY-1.0"
-MAX_UPLOAD_MB = 5                       # deliberate demo constraint (not inherited from IITM portal)
-ALLOWED_EXT = {".pdf", ".png", ".jpg", ".jpeg"}
+POLICY_VERSION = "KYVO-POLICY-1.1"      # 1.1: photos and scanned PDFs are read by OCR, with a confidence gate
+MAX_UPLOAD_MB = 1                       # portal upload limit: PDF/JPG/PNG/DOC, max 1 MB each
+ALLOWED_EXT = {".pdf", ".png", ".jpg", ".jpeg", ".doc", ".docx"}
 MIN_TEXT_CHARS = 40                     # below this a PDF is treated as scanned / unreadable
+
+# ---- OCR (Tesseract) ---------------------------------------------------------------
+OCR_DPI = 300                           # render resolution for image-only PDF pages
+OCR_MIN_DOC_CONF = 0.60                 # mean word confidence below this: the whole document is unreadable
+OCR_MIN_FIELD_CONF = 0.80               # a value read below this only counts if it equals the vendor-entered value exactly
 
 DOC_LABELS = {
     "PAN_PROOF": "PAN proof",
@@ -68,6 +73,41 @@ CIN_RE = re.compile(r"^[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
 BIC_RE = re.compile(r"^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$")
 
+# ---- Part B cross-check tables (India) -------------------------------------------
+# GSTIN first two digits -> state name (used to cross-check the billing state).
+GST_STATE_CODE = {
+    "01": "Jammu and Kashmir", "02": "Himachal Pradesh", "03": "Punjab", "04": "Chandigarh",
+    "05": "Uttarakhand", "06": "Haryana", "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh",
+    "10": "Bihar", "11": "Sikkim", "12": "Arunachal Pradesh", "13": "Nagaland", "14": "Manipur",
+    "15": "Mizoram", "16": "Tripura", "17": "Meghalaya", "18": "Assam", "19": "West Bengal",
+    "20": "Jharkhand", "21": "Odisha", "22": "Chhattisgarh", "23": "Madhya Pradesh", "24": "Gujarat",
+    "25": "Daman and Diu", "26": "Dadra and Nagar Haveli", "27": "Maharashtra", "28": "Andhra Pradesh",
+    "29": "Karnataka", "30": "Goa", "31": "Lakshadweep", "32": "Kerala", "33": "Tamil Nadu",
+    "34": "Puducherry", "35": "Andaman and Nicobar Islands", "36": "Telangana", "37": "Andhra Pradesh",
+    "38": "Ladakh", "97": "Other Territory", "99": "Centre Jurisdiction",
+}
+# Indian PIN code first digit -> the postal zone's states (lower-cased for matching).
+PIN_ZONE = {
+    "1": {"delhi", "haryana", "punjab", "himachal pradesh", "jammu and kashmir", "ladakh", "chandigarh"},
+    "2": {"uttar pradesh", "uttarakhand"},
+    "3": {"rajasthan", "gujarat", "daman and diu", "dadra and nagar haveli"},
+    "4": {"maharashtra", "madhya pradesh", "chhattisgarh", "goa"},
+    "5": {"andhra pradesh", "telangana", "karnataka"},
+    "6": {"tamil nadu", "kerala", "puducherry", "lakshadweep"},
+    "7": {"west bengal", "odisha", "assam", "sikkim", "arunachal pradesh", "nagaland", "manipur",
+          "mizoram", "tripura", "meghalaya", "andaman and nicobar islands"},
+    "8": {"bihar", "jharkhand"},
+}
+# IFSC first four letters -> bank name.
+IFSC_BANK = {
+    "SBIN": "State Bank of India", "HDFC": "HDFC Bank", "ICIC": "ICICI Bank", "UTIB": "Axis Bank",
+    "KKBK": "Kotak Mahindra Bank", "PUNB": "Punjab National Bank", "BARB": "Bank of Baroda",
+    "CNRB": "Canara Bank", "UBIN": "Union Bank of India", "IDIB": "Indian Bank", "IOBA": "Indian Overseas Bank",
+    "FDRL": "Federal Bank", "YESB": "Yes Bank", "INDB": "IndusInd Bank", "IDFB": "IDFC First Bank",
+}
+FREE_EMAIL_DOMAINS = {"gmail", "yahoo", "outlook", "hotmail", "rediffmail"}
+COMPANY_ENTITY_TYPES = {"Private Limited Company", "Public Limited Company", "LLP"}
+
 ENTITY_TYPES = ["Private Limited Company", "Public Limited Company", "LLP", "Partnership Firm",
                 "Proprietorship", "Trust / Society", "Other"]
 PAN_4TH = {"Private Limited Company": "C", "Public Limited Company": "C", "LLP": "F",
@@ -81,10 +121,8 @@ NAME_EXACT, NAME_SIMILAR = 0.999, 0.85   # normalized equality / fuzzy threshold
 
 def required_docs(form: dict) -> list:
     if form.get("region") == "International":
-        docs = ["COMPANY_REG", "BANK_PROOF", "TAX_CERT"]
-        if form.get("trc_applicable"):
-            docs.append("TRC")
-        return docs
+        # TRC (number + certificate) is mandatory for every International vendor.
+        return ["COMPANY_REG", "BANK_PROOF", "TAX_CERT", "TRC"]
     docs = ["PAN_PROOF"]
     if form.get("domestic_type") == "PAN with GST":
         docs.append("GST_CERT")

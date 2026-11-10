@@ -35,18 +35,56 @@ CREATE TABLE IF NOT EXISTS audit_events(
   id INTEGER PRIMARY KEY, submission_id INTEGER, event TEXT, actor TEXT, details_json TEXT, created_at TEXT);
 CREATE TABLE IF NOT EXISTS policy_blocklist(
   id INTEGER PRIMARY KEY, id_type TEXT, id_value TEXT, reason TEXT, added_by TEXT, created_at TEXT);
+CREATE TABLE IF NOT EXISTS follow_up_requests(
+  id INTEGER PRIMARY KEY, submission_id INTEGER, rule_id TEXT, about TEXT, ask TEXT,
+  status TEXT DEFAULT 'OPEN', opened_run INTEGER, resolved_run INTEGER, created_at TEXT, updated_at TEXT);
+CREATE TABLE IF NOT EXISTS change_requests(
+  id INTEGER PRIMARY KEY, vendor_id INTEGER, submission_id INTEGER, cr_type TEXT, new_value TEXT, reason TEXT,
+  file_path TEXT, terms_accepted INTEGER, status TEXT DEFAULT 'PENDING', admin_comment TEXT,
+  created_at TEXT, decided_at TEXT, decided_by TEXT);
+CREATE TABLE IF NOT EXISTS payments(
+  id INTEGER PRIMARY KEY, vendor_id INTEGER, reference_no TEXT, amount TEXT, status TEXT DEFAULT 'PENDING',
+  transaction_id TEXT, payment_date TEXT, created_at TEXT);
+CREATE TABLE IF NOT EXISTS otp_tokens(
+  id INTEGER PRIMARY KEY, vendor_id INTEGER, otp_hash TEXT, purpose TEXT, created_at TEXT, expires_at TEXT,
+  used INTEGER DEFAULT 0, attempts INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS registration_steps(
+  id INTEGER PRIMARY KEY, vendor_id INTEGER, step_no INTEGER, data_json TEXT, completed INTEGER DEFAULT 0, updated_at TEXT);
 CREATE INDEX IF NOT EXISTS ix_ident ON vendor_identifiers(id_type, id_value);
 CREATE INDEX IF NOT EXISTS ix_val ON validation_results(submission_id, run_no);
+CREATE INDEX IF NOT EXISTS ix_fur ON follow_up_requests(submission_id, status);
 """
 
 def now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+
+# Columns added after the first release. Guarded so an existing kyvo.db keeps opening.
+MIGRATIONS = [
+    ("submissions", "waiting_on", "TEXT"),
+    ("submissions", "stale", "INTEGER DEFAULT 0"),
+    ("decisions", "waiting_on", "TEXT"),
+    ("vendors", "vendor_id", "TEXT"),
+    ("vendors", "email", "TEXT"),
+    ("vendors", "pan", "TEXT"),
+    ("vendors", "gstin", "TEXT"),
+    ("vendors", "reg_number", "TEXT"),
+    ("vendors", "signup_region", "TEXT"),
+    ("vendors", "signup_type", "TEXT"),
+]
+
+def migrate(conn):
+    for table, col, decl in MIGRATIONS:
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        if col not in have:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+    conn.commit()
 
 def connect(path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(SCHEMA)
+    migrate(conn)
     conn.commit()
     return conn
 
@@ -120,6 +158,19 @@ def find_duplicates(conn, sid, identifiers: list) -> list:
                                WHERE i.id_type=? AND i.id_value=? AND i.submission_id<>?""", (id_type, id_value, sid)):
             d = latest_decision(conn, r["submission_id"])
             hits.append({**r, "ref": ref(r["submission_id"]), "prior_status": d["status"] if d else "IN_PROGRESS"})
+    return hits
+
+def find_shared_bank(conn, vendor_id, bank_idents: list) -> list:
+    """Other vendors (not this one) whose stored BANK_ACCT identifier matches. Separate from find_duplicates on purpose."""
+    hits = []
+    for _id_type, id_value in bank_idents:
+        for r in rows(conn, """SELECT DISTINCT i.vendor_id, i.id_value, v.legal_name,
+                                      (SELECT MAX(s.id) FROM submissions s WHERE s.vendor_id=i.vendor_id) AS submission_id
+                               FROM vendor_identifiers i JOIN vendors v ON v.id=i.vendor_id
+                               WHERE i.id_type='BANK_ACCT' AND i.id_value=? AND i.vendor_id<>?""", (id_value, vendor_id)):
+            d = latest_decision(conn, r["submission_id"]) if r["submission_id"] else None
+            hits.append({**r, "ref": ref(r["submission_id"]) if r["submission_id"] else "-",
+                         "prior_status": d["status"] if d else "IN_PROGRESS"})
     return hits
 
 def blocklist_hits(conn, identifiers: list) -> list:
