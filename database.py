@@ -70,6 +70,8 @@ MIGRATIONS = [
     ("vendors", "reg_number", "TEXT"),
     ("vendors", "signup_region", "TEXT"),
     ("vendors", "signup_type", "TEXT"),
+    ("validation_results", "assurance", "TEXT"),      # Part B: FORMAT | CONSISTENCY | NOT_VERIFIED
+    ("decisions", "payment_hold", "INTEGER DEFAULT 0"),  # Part E: bank-change hold
 ]
 
 def migrate(conn):

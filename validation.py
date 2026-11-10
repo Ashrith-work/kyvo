@@ -14,10 +14,11 @@ def gstin_checksum(first14: str) -> str:
     return CH36[(36 - total % 36) % 36]
 
 def R(stage, rule_id, label, status, severity="MEDIUM", source="", evidence="", explanation="", action="",
-      flag=None, blocking=True, provenance="vendor-entered"):
+      flag=None, blocking=True, provenance="vendor-entered", assurance=None):
     return dict(stage=stage, rule_id=rule_id, label=label, status=status, severity=severity, source=source,
                 evidence=evidence, explanation=explanation, action=action, flag_code=flag,
-                blocking=int(blocking and status != "PASS"), provenance=provenance)
+                blocking=int(blocking and status != "PASS"), provenance=provenance,
+                assurance=assurance or level_for(rule_id, flag, status))
 
 # ---- names -----------------------------------------------------------------------
 def normalize_name(s: str) -> str:

@@ -70,6 +70,28 @@ def flag_assurance(code):
 def flag_is_reviewer(code):
     return flag(code).get("blocking") and flag(code).get("waiting_on") == "REVIEWER"
 
+# ---- assurance (Part B) ----------------------------------------------------------
+# A PASS of one of these rules means two independent sources agree (form vs document, or document vs
+# document). Everything else that passes is FORMAT (syntax, checksum, or two fields of the same form).
+CONSISTENCY_RULES = {
+    "XD_PAN_DOC", "XD_PAN_GST", "XD_GSTIN_DOC", "XD_TAXID_DOC",
+    "XN_LEGAL_PAN", "XN_LEGAL_GST", "XN_LEGAL_REG", "XN_LEGAL_TAX", "XN_LEGAL_TRC", "XN_TRADE_GST",
+    "XR_REGNO", "XB_IFSC", "XB_ACCT", "XB_HOLDER_DOC", "XB_DOCHOLDER_LEGAL",
+}
+NOT_VERIFIED_RULES = {"SCOPE_EXTERNAL"}
+
+def level_for(rule_id, flag_code=None, status="PASS"):
+    """Assurance nature of a check: FORMAT, CONSISTENCY or NOT_VERIFIED. Flagged checks take the flag's level."""
+    if flag_code:
+        a = flag_assurance(flag_code)
+        if a:
+            return a
+    if rule_id in CONSISTENCY_RULES or (rule_id.startswith("DOC_") and not rule_id.startswith("DOC_EXTRA")):
+        return "CONSISTENCY"
+    if rule_id in NOT_VERIFIED_RULES or rule_id.startswith("BLOCK_"):
+        return "NOT_VERIFIED"
+    return "FORMAT"
+
 # ---- policy lock -----------------------------------------------------------------
 def read_lock():
     if not os.path.exists(LOCK_PATH):

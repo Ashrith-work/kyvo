@@ -6,6 +6,7 @@ import extraction as ex
 import validation as va
 import decision_engine as de
 import communication as cm
+import assurance as asr
 
 STAGES = ["Submission received", "Document intake", "Classification", "Field extraction", "Validation",
           "Cross-document reconciliation", "Risk assessment", "Decision", "Email draft", "Audit persistence"]
@@ -40,7 +41,7 @@ def _persist_results(conn, sid, run_no, results):
         db.insert(conn, "validation_results", submission_id=sid, run_no=run_no, stage=r["stage"], rule_id=r["rule_id"],
                   label=r["label"], status=r["status"], severity=r["severity"], blocking=r["blocking"], source=r["source"],
                   provenance=r["provenance"], evidence=r["evidence"], explanation=r["explanation"], action=r["action"],
-                  flag_code=r["flag_code"], created_at=db.now())
+                  flag_code=r["flag_code"], assurance=r.get("assurance"), created_at=db.now())
 
 def _summ(results):
     return {s: sum(1 for r in results if r["status"] == s) for s in ("PASS", "FAIL", "WARN", "NOT_CHECKED")}
@@ -55,6 +56,13 @@ def _make_flags(conn, sid, run_no, results):
     return flags
 
 def _decide_and_draft(conn, sid, run_no, form, results, actor):
+    augmented = asr.enforce_two_source(results, form)   # Part B two-source gate
+    extra = augmented[len(results):]
+    if extra:                                           # the gate fired: persist, flag and open its request too
+        _persist_results(conn, sid, run_no, extra)
+        _make_flags(conn, sid, run_no, extra)
+        _sync_follow_ups(conn, sid, run_no, augmented)
+    results = augmented
     dec = de.decide(results)
     dec["waiting_on"] = de.compute_waiting_on(results, dec["status"])
     did = db.insert(conn, "decisions", submission_id=sid, run_no=run_no, status=dec["status"],
@@ -292,7 +300,10 @@ def decision_json(conn, sid) -> dict:
     dec = {"status": d["status"], "risk_level": d["risk_level"], "policy_version": d["policy_version"],
            "next_action": d["next_action"], "decided_at": d["created_at"]}
     waiting_on = d["waiting_on"] or de.compute_waiting_on(results, d["status"])
-    return de.decision_record(sid, vendor_id, run_no, results, dec, waiting_on, requests)
+    summary = asr.summarize(results, json.loads(s["snapshot_json"]))
+    hold = db.one(conn, "SELECT COUNT(*) AS n FROM payments WHERE vendor_id=? AND status='ON_HOLD'", (s["vendor_id"],))
+    payment_hold = 1 if (hold and hold["n"]) else (d.get("payment_hold") or 0)
+    return de.decision_record(sid, vendor_id, run_no, results, dec, waiting_on, requests, summary, payment_hold)
 
 # ---- reviewer actions & re-run -----------------------------------------------------
 def correct_field(conn, sid, document_id, field, new_value, reviewer, reason):

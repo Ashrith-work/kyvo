@@ -25,14 +25,18 @@ def derive_requests(results: list) -> list:
             out.append({"id": r["rule_id"], "about": r["label"], "ask": r["action"], "status": "OPEN"})
     return out
 
-def decision_record(submission_id, vendor_id, run_no, results, dec, waiting_on, requests) -> dict:
-    """The decision.schema.json object. reasons[] are the blocking drivers; requests_to_vendor[] the open asks."""
+def decision_record(submission_id, vendor_id, run_no, results, dec, waiting_on, requests,
+                    assurance=None, payment_hold=0) -> dict:
+    """The decision.schema.json object. reasons[] are the blocking drivers; requests_to_vendor[] the open asks;
+    assurance is the per-identifier roll-up (Part B); payment_hold is set by a bank-details change (Part E)."""
     blocking = [r for r in results if r["blocking"] and r["status"] != "PASS"]
     reasons = [{"rule_id": r["rule_id"], "label": r["label"], "status": r["status"], "severity": r["severity"],
-                "evidence": r["evidence"], "source": r["source"], "provenance": r["provenance"]} for r in blocking]
+                "assurance": r.get("assurance"), "evidence": r["evidence"], "source": r["source"],
+                "provenance": r["provenance"]} for r in blocking]
     return {"submission_id": submission_id, "vendor_id": vendor_id, "status": dec["status"], "waiting_on": waiting_on,
             "risk_level": dec["risk_level"], "policy_version": dec["policy_version"], "run_no": run_no,
-            "decided_at": dec.get("decided_at"), "reasons": reasons, "requests_to_vendor": requests,
+            "decided_at": dec.get("decided_at"), "payment_hold": int(bool(payment_hold)),
+            "assurance": assurance or {}, "reasons": reasons, "requests_to_vendor": requests,
             "next_action": dec["next_action"]}
 
 def decide(results: list) -> dict:
