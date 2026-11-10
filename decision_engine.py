@@ -1,19 +1,16 @@
 """Deterministic three-status policy. No LLM. APPROVED only if clean; PENDING for any uncertainty;
 REJECTED only for a written policy disqualification (blocklist) or a human reviewer's confirmed rejection."""
-from config import POLICY_VERSION
+from config import POLICY_VERSION, RISK_RANK, RANK_TO_RISK, flag_is_reviewer
 from database import now
 
-SEV_RANK = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
-
-# Blocking items of these kinds need a person's judgement, so the case waits on a REVIEWER, not the vendor.
-REVIEWER_FLAGS = {"NAME_MISMATCH", "DUPLICATE_IDENTIFIER", "BANK_SHARED", "BANK_CHANGE", "POLICY_BLOCKLIST"}
+SEV_RANK = RISK_RANK   # severity name -> rank, from policy/kyvo_policy.yaml (risk_weights)
 
 def compute_waiting_on(results: list, status: str) -> str:
-    """NONE when approved/clean, REVIEWER when any blocking item needs human judgement, else VENDOR."""
+    """NONE when approved/clean, REVIEWER when any blocking item routes to a reviewer in flags.yaml, else VENDOR."""
     blocking = [r for r in results if r["blocking"] and r["status"] != "PASS"]
     if status == "APPROVED" or not blocking:
         return "NONE"
-    if status == "REJECTED" or any(r.get("flag_code") in REVIEWER_FLAGS for r in blocking):
+    if status == "REJECTED" or any(flag_is_reviewer(r.get("flag_code")) for r in blocking):
         return "REVIEWER"
     return "VENDOR"
 
@@ -28,14 +25,18 @@ def derive_requests(results: list) -> list:
             out.append({"id": r["rule_id"], "about": r["label"], "ask": r["action"], "status": "OPEN"})
     return out
 
-def decision_record(submission_id, vendor_id, run_no, results, dec, waiting_on, requests) -> dict:
-    """The decision.schema.json object. reasons[] are the blocking drivers; requests_to_vendor[] the open asks."""
+def decision_record(submission_id, vendor_id, run_no, results, dec, waiting_on, requests,
+                    assurance=None, payment_hold=0) -> dict:
+    """The decision.schema.json object. reasons[] are the blocking drivers; requests_to_vendor[] the open asks;
+    assurance is the per-identifier roll-up (Part B); payment_hold is set by a bank-details change (Part E)."""
     blocking = [r for r in results if r["blocking"] and r["status"] != "PASS"]
     reasons = [{"rule_id": r["rule_id"], "label": r["label"], "status": r["status"], "severity": r["severity"],
-                "evidence": r["evidence"], "source": r["source"], "provenance": r["provenance"]} for r in blocking]
+                "assurance": r.get("assurance"), "evidence": r["evidence"], "source": r["source"],
+                "provenance": r["provenance"]} for r in blocking]
     return {"submission_id": submission_id, "vendor_id": vendor_id, "status": dec["status"], "waiting_on": waiting_on,
             "risk_level": dec["risk_level"], "policy_version": dec["policy_version"], "run_no": run_no,
-            "decided_at": dec.get("decided_at"), "reasons": reasons, "requests_to_vendor": requests,
+            "decided_at": dec.get("decided_at"), "payment_hold": int(bool(payment_hold)),
+            "assurance": assurance or {}, "reasons": reasons, "requests_to_vendor": requests,
             "next_action": dec["next_action"]}
 
 def decide(results: list) -> dict:
@@ -48,7 +49,7 @@ def decide(results: list) -> dict:
     else:
         status = "APPROVED"
     top = max((SEV_RANK[r["severity"]] for r in blocking), default=0)
-    risk = {0: "LOW", 1: "LOW", 2: "MEDIUM", 3: "HIGH"}[top]
+    risk = RANK_TO_RISK[top]
     if status == "APPROVED":
         reasons = ["All applicable fields and documents are present, document types match, formats pass, "
                    "cross-document checks agree and no duplicate was found."]

@@ -1,0 +1,5 @@
+# Optional viewer only. app.py is a Streamlit viewer over the same engine and database;
+# it is not the product. The headless automation (inbox.py, mailer.py, cli.py) needs only
+# requirements.txt. Install this as well if you want to run `streamlit run app.py`.
+-r requirements.txt
+streamlit>=1.35

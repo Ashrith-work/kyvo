@@ -5,28 +5,43 @@
   "description": "The explainable onboarding decision produced for every run of the workflow.",
   "type": "object",
   "required": ["submission_id", "vendor_id", "status", "waiting_on", "risk_level", "policy_version",
-               "run_no", "decided_at", "reasons", "requests_to_vendor", "next_action"],
+               "run_no", "decided_at", "payment_hold", "assurance", "reasons", "requests_to_vendor", "next_action"],
   "properties": {
     "submission_id": {"type": "integer", "description": "Internal submission id."},
     "vendor_id": {"type": "string", "description": "Public Vendor ID (V#####) once issued, else a VENDOR-##### fallback."},
     "status": {"enum": ["APPROVED", "PENDING", "REJECTED"]},
     "waiting_on": {"enum": ["VENDOR", "REVIEWER", "NONE"],
-                   "description": "VENDOR when every blocking item has an open request; REVIEWER when any needs human judgement; NONE when approved."},
+                   "description": "VENDOR when a blocking item is the vendor's to fix; REVIEWER when any needs human judgement; NONE when approved."},
     "risk_level": {"enum": ["LOW", "MEDIUM", "HIGH"]},
-    "policy_version": {"type": "string", "description": "e.g. KYVO-POLICY-1.1"},
+    "policy_version": {"type": "string", "description": "KYVO-POLICY-<semver>+<sha256[:12]> of the policy file in force."},
     "run_no": {"type": "integer", "description": "1 for the first run; increments on each re-run (reviewer or vendor response)."},
     "decided_at": {"type": "string", "description": "ISO-8601 UTC timestamp."},
+    "payment_hold": {"type": "integer", "enum": [0, 1],
+                     "description": "1 when payments are held (set by a bank-details change until a reviewer confirms)."},
+    "assurance": {
+      "type": "object",
+      "description": "Per-identifier roll-up: the highest assurance level reached and what was not verified.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["level", "not_verified"],
+        "properties": {
+          "level": {"enum": ["NONE", "FORMAT", "CONSISTENCY"]},
+          "not_verified": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
     "reasons": {
       "type": "array",
       "description": "The blocking drivers of the decision (empty when APPROVED).",
       "items": {
         "type": "object",
-        "required": ["rule_id", "label", "status", "severity", "evidence", "source", "provenance"],
+        "required": ["rule_id", "label", "status", "severity", "assurance", "evidence", "source", "provenance"],
         "properties": {
           "rule_id": {"type": "string"},
           "label": {"type": "string"},
           "status": {"enum": ["PASS", "FAIL", "WARN", "NOT_CHECKED"]},
           "severity": {"enum": ["LOW", "MEDIUM", "HIGH"]},
+          "assurance": {"enum": ["FORMAT", "CONSISTENCY", "NOT_VERIFIED"]},
           "evidence": {"type": "string"},
           "source": {"type": "string"},
           "provenance": {"type": "string", "description": "vendor-entered | extracted | reviewer_corrected | vendor_resubmitted | system-derived"}

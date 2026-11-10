@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kyvo verify</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  form{margin:0}
+  fieldset{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:14px 16px;margin:0 0 16px}
+  legend{font-weight:600;padding:0 6px}
+  .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 16px}
+  label{display:block;font-size:13px;color:var(--muted);margin:8px 0 3px}
+  input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff}
+  input[type=file]{padding:6px;background:#FBFAF7}
+  .btn{display:inline-block;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;
+       padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
+  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .btn:hover{border-color:var(--ink)}
+  .scn{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0}
+  .scn .btn{font-weight:500;font-size:14px}
+  .hint{color:var(--muted);font-size:13px;margin:6px 0 0}
+  .result{margin-top:22px}
+  .stage{display:flex;align-items:center;gap:10px;padding:5px 0;color:var(--muted);opacity:0;transform:translateY(4px);
+         transition:opacity .25s,transform .25s}
+  .stage.on{opacity:1;transform:none;color:var(--ink)}
+  .stage .tick{width:20px;height:20px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;font-size:13px;flex:none}
+  .verdict{margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
+  .verdict h2{margin:0 0 6px}
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-3px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap" style="display:flex;align-items:center;justify-content:space-between">
+  <a class="brand" href="index.html"><span class="mark">K</span> Kyvo</a>
+  <nav><a href="index.html">Overview</a><a href="policy.html">Policy</a><a href="flags.html">Flags</a><a href="eval.html">Eval</a></nav>
+</div></header>
+
+<main class="wrap">
+  <h1>Verify a vendor</h1>
+  <p class="sub">Upload the supporting documents and watch the approval process run on the real engine.
+  Format and consistency checks only; official registries are not queried.</p>
+
+  <h2>See it in one click</h2>
+  <p class="hint">Run a bundled fictional case end to end (no upload needed).</p>
+  <div class="scn" id="scenarios">
+    <button class="btn" data-scn="1_happy_path">Happy path</button>
+    <button class="btn" data-scn="E1_proprietor">E1 sole proprietor</button>
+    <button class="btn" data-scn="3_bank_mismatch">Bank holder mismatch</button>
+    <button class="btn" data-scn="E3b_blocklisted_bank">E3b blocklisted account</button>
+    <button class="btn" data-scn="E4_resubmission">E4 first run</button>
+  </div>
+
+  <h2 style="margin-top:28px">Or upload documents</h2>
+  <p class="hint">The form is prefilled with a fictional vendor. Download the matching sample PDFs, upload
+  them, and submit to see an approval. Swap in a different bank proof to see it held for review.
+  <a href="samples/m_pan.pdf">PAN</a>, <a href="samples/m_gst.pdf">GST</a>,
+  <a href="samples/m_reg.pdf">registration</a>, <a href="samples/m_bank.pdf">bank proof</a>,
+  <a href="samples/b_bank.pdf">mismatched bank proof</a>.</p>
+
+  <form id="vform">
+    <fieldset>
+      <legend>Vendor</legend>
+      <div class="row">
+        <div><label>Legal name</label><input name="legal_name" value="Meridian Precision Components Private Limited"></div>
+        <div><label>Entity type</label><input name="entity_type" value="Private Limited Company"></div>
+        <div><label>Contact person</label><input name="contact_person" value="Anita Rao"></div>
+        <div><label>PAN</label><input name="pan" value="AABCM4821K"></div>
+        <div><label>GSTIN</label><input name="gstin" value="29AABCM4821K1ZB"></div>
+        <div><label>Email</label><input name="email" value="anita@meridianprecision.example"></div>
+        <div><label>Phone</label><input name="phone" value="+91 98450 12345"></div>
+        <div><label>State</label><input name="state" value="Karnataka"></div>
+        <div><label>City</label><input name="city" value="Bengaluru"></div>
+        <div><label>PIN code</label><input name="pincode" value="560058"></div>
+        <div><label>Address</label><input name="address" value="Plot 14, Peenya Industrial Area, Bengaluru, Karnataka 560058"></div>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Bank</legend>
+      <div class="row">
+        <div><label>Account holder</label><input name="bank_holder" value="Meridian Precision Components Private Limited"></div>
+        <div><label>Account number</label><input name="account_number" value="50200012345678"></div>
+        <div><label>Bank name</label><input name="bank_name" value="HDFC Bank"></div>
+        <div><label>IFSC</label><input name="ifsc" value="HDFC0001234"></div>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Documents (PDF)</legend>
+      <div class="row">
+        <div><label>PAN proof</label><input type="file" accept="application/pdf" id="PAN_PROOF"></div>
+        <div><label>GST certificate</label><input type="file" accept="application/pdf" id="GST_CERT"></div>
+        <div><label>Company registration</label><input type="file" accept="application/pdf" id="COMPANY_REG"></div>
+        <div><label>Bank proof</label><input type="file" accept="application/pdf" id="BANK_PROOF"></div>
+      </div>
+    </fieldset>
+    <button class="btn primary" type="submit">Run verification</button>
+  </form>
+
+  <div class="result" id="result" hidden></div>
+  <footer>Deterministic rules decide. A fuzzy name difference never rejects; a low-confidence OCR value
+  counts only on an exact match. All data is fictional.</footer>
+</main>
+
+<script>
+const SERVICE = {service_category: "Manufacturing / Supply of goods", service_description: "CNC machined components for automotive customers"};
+const FIXED = {region: "Domestic", domestic_type: "PAN with GST", country: "India", terms_accepted: true};
+const el = (id) => document.getElementById(id);
+const esc = (s) => String(s==null?"":s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function fileB64(file){return new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result.split(',')[1]);f.readAsDataURL(file);});}
+
+async function gatherForm(){
+  const form = Object.assign({}, FIXED, SERVICE);
+  document.querySelectorAll('#vform input[name]').forEach(i => form[i.name] = i.value);
+  const docs = {};
+  for(const t of ["PAN_PROOF","GST_CERT","COMPANY_REG","BANK_PROOF"]){
+    const f = el(t).files[0];
+    if(f) docs[t] = {filename: f.name, b64: await fileB64(f)};
+  }
+  return {form, documents: docs};
+}
+
+async function call(payload){
+  const box = el('result'); box.hidden = false;
+  box.innerHTML = '<p><span class="spin"></span> Running the verification engine...</p>';
+  let data;
+  try{
+    const res = await fetch('/api/verify', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload)});
+    data = await res.json();
+  }catch(e){ box.innerHTML = '<p>Could not reach the engine: '+esc(e.message)+'</p>'; return; }
+  if(data.error){ box.innerHTML = '<p>Engine error: '+esc(data.error)+'</p>'; return; }
+  render(data);
+}
+
+function render(data){
+  const box = el('result');
+  const d = data.decision;
+  box.innerHTML = '<h2>Pipeline</h2><div id="stages"></div>';
+  const stagesEl = el('stages');
+  data.stages.forEach((s,i) => {
+    const row = document.createElement('div'); row.className='stage';
+    row.innerHTML = '<span class="tick">✓</span>'+esc(s);
+    stagesEl.appendChild(row);
+    setTimeout(()=>row.classList.add('on'), 90*i);
+  });
+  setTimeout(()=>{
+    const cls = d.status;
+    let h = '<div class="verdict"><h2><span class="pill '+cls+'">'+esc(d.status)+'</span> '+
+      'waiting on '+esc(d.waiting_on)+', risk '+esc(d.risk_level)+
+      (d.payment_hold? ', payments on hold':'')+'</h2>'+
+      '<p class="muted small">Policy '+esc(d.policy_version)+'</p>';
+    h += '<h3>Identity assurance</h3><table><tr><th>Identity</th><th>Level</th><th>Not verified</th></tr>';
+    for(const [k,v] of Object.entries(d.assurance||{}))
+      h += '<tr><td>'+esc(k.replace(/_/g,' '))+'</td><td>'+esc(v.level)+'</td><td class="small">'+esc((v.not_verified||[]).join('; '))+'</td></tr>';
+    h += '</table>';
+    if((d.reasons||[]).length){ h+='<h3>Why</h3><ul>'; d.reasons.forEach(r=>h+='<li>['+esc(r.severity)+'] '+esc(r.label)+' ('+esc(r.assurance)+'): '+esc(r.evidence)+'</li>'); h+='</ul>'; }
+    if((d.requests_to_vendor||[]).length){ h+='<h3>Requests to the vendor</h3><ul>'; d.requests_to_vendor.forEach(q=>h+='<li>'+esc(q.ask)+'</li>'); h+='</ul>'; }
+    h += '<p class="muted small">'+esc(d.next_action)+'</p></div>';
+    h += '<h3>Checks</h3><table><tr><th>Check</th><th>Status</th><th>Assurance</th><th>Evidence</th></tr>';
+    (data.checks||[]).forEach(c=>h+='<tr><td>'+esc(c.label)+'</td><td>'+esc(c.status)+'</td><td>'+esc(c.assurance)+'</td><td class="small">'+esc(c.evidence)+'</td></tr>');
+    h += '</table>';
+    box.insertAdjacentHTML('beforeend', h);
+  }, 90*data.stages.length + 150);
+}
+
+document.getElementById('scenarios').addEventListener('click', e => {
+  const b = e.target.closest('[data-scn]'); if(!b) return;
+  call({scenario: b.dataset.scn});
+});
+document.getElementById('vform').addEventListener('submit', async e => {
+  e.preventDefault();
+  call(await gatherForm());
+});
+</script>
+</body>
+</html>

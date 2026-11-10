@@ -216,7 +216,32 @@ def extract_fields(doc_type: str, pages: list, line_conf: list = None, line_note
             f["method"], f["confidence"] = "ocr", round(conf if conf is not None else 0.0, 2)
             if note:
                 f["evidence"] = f"{f['evidence']} [{note}]"
+    out = _llm_pass(doc_type, pages) + out    # Part K: optional, prepended so deterministic reads win
     return out
+
+def _gate_norm(s):
+    return re.sub(r"[^A-Za-z0-9]", "", str(s or "")).upper()
+
+def _llm_pass(doc_type, pages):
+    """Optional LLM proposals, accepted only when the value appears in the document's own text/OCR after
+    normalisation (otherwise ignored and logged). Returns [] when the reader is off. The rules still decide."""
+    import llm_reader
+    proposals = llm_reader.propose(doc_type, pages)
+    if not proposals:
+        return []
+    doc_norm = _gate_norm("\n".join(pages or []))
+    rows = []
+    for field, value in proposals.items():
+        vnorm = _gate_norm(value)
+        if vnorm and vnorm in doc_norm:
+            val = str(value).upper().replace(" ", "") if field in ("pan", "gstin", "ifsc", "swift", "tax_id") else value
+            if field == "account_number":
+                val = re.sub(r"[ \-]", "", str(value)).upper()
+            rows.append({"field": field, "value": val, "page": 1,
+                         "evidence": "LLM proposal confirmed in document text", "method": "llm", "confidence": 0.9})
+        else:
+            llm_reader._log_ignored(doc_type, {"field": field, "value": str(value)[:40], "reason": "not in document text"})
+    return rows
 
 def _extract(doc_type: str, pages: list) -> list:
     out = []

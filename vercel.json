@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "framework": null,
+  "buildCommand": "echo prebuilt-static-site",
+  "outputDirectory": "public",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "functions": {
+    "api/verify.py": {
+      "includeFiles": "{**/*.py,policy/**,schemas/**,sample_data/**}"
+    }
+  }
+}

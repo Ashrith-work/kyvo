@@ -1,0 +1,317 @@
+{
+ "1_happy_path": {
+  "PAN_PROOF": {
+   "pan": "AABCM4821K",
+   "name": "Meridian Precision Components Private Limited"
+  },
+  "GST_CERT": {
+   "gstin": "29AABCM4821K1ZB",
+   "pan": "AABCM4821K",
+   "name": "Meridian Precision Components Private Limited",
+   "trade_name": "Meridian Precision"
+  },
+  "COMPANY_REG": {
+   "name": "Meridian Precision Components Private Limited",
+   "reg_number": "U29299KA2015PTC081234"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Meridian Precision Components Private Limited",
+   "account_number": "50200012345678",
+   "ifsc": "HDFC0001234",
+   "bank_name": "HDFC Bank"
+  }
+ },
+ "2_wrong_document": {
+  "PAN_PROOF": {
+   "pan": "AABCA7312P",
+   "name": "Aster Cold Chain Logistics Private Limited"
+  },
+  "GST_CERT": {
+   "gstin": "33AABCA7312P1ZO"
+  },
+  "COMPANY_REG": {
+   "name": "Aster Cold Chain Logistics Private Limited",
+   "reg_number": "U63090TN2018PTC123456"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Aster Cold Chain Logistics Private Limited",
+   "account_number": "004501234567",
+   "ifsc": "ICIC0001045",
+   "bank_name": "ICICI Bank"
+  }
+ },
+ "3_bank_mismatch": {
+  "PAN_PROOF": {
+   "pan": "AAECB9054N",
+   "name": "BrightPath Facility Services Private Limited"
+  },
+  "GST_CERT": {
+   "gstin": "27AAECB9054N1Z6",
+   "pan": "AAECB9054N",
+   "name": "BrightPath Facility Services Private Limited",
+   "trade_name": "BrightPath"
+  },
+  "COMPANY_REG": {
+   "name": "BrightPath Facility Services Private Limited",
+   "reg_number": "U74999MH2019PTC324567"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Rajesh Kumar Enterprises",
+   "account_number": "31245678901",
+   "ifsc": "SBIN0004321",
+   "bank_name": "State Bank of India"
+  }
+ },
+ "4_country_tax_mismatch": {
+  "COMPANY_REG": {
+   "name": "Rheinwerk Logistik GmbH",
+   "reg_number": "HRB123456"
+  },
+  "TAX_CERT": {
+   "tax_id": "AABCR5512L",
+   "name": "Rheinwerk Logistik GmbH"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Rheinwerk Logistik GmbH",
+   "account_number": "DE89370400440532013000",
+   "bank_name": "Deutsche Bank AG",
+   "swift": "DEUTDEFF"
+  },
+  "TRC": {
+   "name": "Rheinwerk Logistik GmbH",
+   "country": "Germany"
+  }
+ },
+ "5_duplicate_pan": {
+  "PAN_PROOF": {
+   "pan": "AABCM4821K",
+   "name": "Meridian Precision Components Private Limited"
+  },
+  "GST_CERT": {
+   "gstin": "29AABCM4821K1ZB",
+   "pan": "AABCM4821K",
+   "name": "Meridian Precision Components Private Limited",
+   "trade_name": "Meridian Precision"
+  },
+  "COMPANY_REG": {
+   "name": "Meridian Precision Components Private Limited",
+   "reg_number": "U29299KA2015PTC081234"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Meridian Precision Components Private Limited",
+   "account_number": "50200012345678",
+   "ifsc": "HDFC0001234",
+   "bank_name": "HDFC Bank"
+  }
+ },
+ "6_pan_without_gst": {
+  "PAN_PROOF": {
+   "pan": "AAGFK7351M",
+   "name": "Kaveri Packaging Solutions LLP"
+  },
+  "COMPANY_REG": {
+   "name": "Kaveri Packaging Solutions LLP",
+   "reg_number": "AAB-1234"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Kaveri Packaging Solutions LLP",
+   "account_number": "917020012345678",
+   "ifsc": "UTIB0000456",
+   "bank_name": "Axis Bank"
+  }
+ },
+ "7_international_us": {
+  "COMPANY_REG": {
+   "name": "Northwind Analytics Inc.",
+   "reg_number": "7741920"
+  },
+  "TAX_CERT": {
+   "tax_id": "84-3920157",
+   "name": "Northwind Analytics Inc."
+  },
+  "BANK_PROOF": {
+   "account_holder": "Northwind Analytics Inc.",
+   "account_number": "000123456789",
+   "bank_name": "JPMorgan Chase Bank",
+   "swift": "CHASUS33"
+  },
+  "TRC": {
+   "name": "Northwind Analytics Inc.",
+   "country": "United States"
+  }
+ },
+ "8_unsupported_country": {
+  "COMPANY_REG": {
+   "name": "Verde Vale Exportadora Ltda",
+   "reg_number": "NIRE3520012345"
+  },
+  "TAX_CERT": {
+   "tax_id": "12.345.678/0001-95",
+   "name": "Verde Vale Exportadora Ltda"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Verde Vale Exportadora Ltda",
+   "account_number": "000123456789",
+   "bank_name": "Banco do Brasil",
+   "swift": "BRASBRRJ"
+  },
+  "TRC": {
+   "name": "Verde Vale Exportadora Ltda",
+   "country": "Brazil"
+  }
+ },
+ "9_scanned_bank_proof": {
+  "PAN_PROOF": {
+   "pan": "AAACO6120D",
+   "name": "Orchid Textile Mills Private Limited"
+  },
+  "GST_CERT": {
+   "gstin": "24AAACO6120D1Z3",
+   "pan": "AAACO6120D",
+   "name": "Orchid Textile Mills Private Limited",
+   "trade_name": "Orchid Textiles"
+  },
+  "COMPANY_REG": {
+   "name": "Orchid Textile Mills Private Limited",
+   "reg_number": "U17110GJ2016PTC456789"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Orchid Textile Mills Private Limited",
+   "account_number": "7412345678",
+   "ifsc": "KKBK0001122",
+   "bank_name": "Kotak Mahindra Bank"
+  }
+ },
+ "10_phone_photos": {
+  "PAN_PROOF": {
+   "pan": "AABCL5527Q",
+   "name": "Lotus Agro Foods Private Limited"
+  },
+  "GST_CERT": {
+   "gstin": "36AABCL5527Q1Z0",
+   "pan": "AABCL5527Q",
+   "name": "Lotus Agro Foods Private Limited",
+   "trade_name": "Lotus Agro"
+  },
+  "COMPANY_REG": {
+   "name": "Lotus Agro Foods Private Limited",
+   "reg_number": "U15400TG2017PTC118822"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Lotus Agro Foods Private Limited",
+   "account_number": "6011223344",
+   "ifsc": "KKBK0004455",
+   "bank_name": "Kotak Mahindra Bank"
+  }
+ },
+ "11_blurry_photo": {
+  "PAN_PROOF": {
+   "pan": "AAHCS3108R",
+   "name": "Saffron Hospitality Supplies Private Limited"
+  },
+  "GST_CERT": {
+   "gstin": "32AAHCS3108R1Z4",
+   "pan": "AAHCS3108R",
+   "name": "Saffron Hospitality Supplies Private Limited",
+   "trade_name": "Saffron Supplies"
+  },
+  "COMPANY_REG": {
+   "name": "Saffron Hospitality Supplies Private Limited",
+   "reg_number": "U55101KL2020PTC061234"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Saffron Hospitality Supplies Private Limited",
+   "account_number": "15670200045678",
+   "ifsc": "FDRL0001567",
+   "bank_name": "Federal Bank"
+  }
+ },
+ "E1_proprietor": {
+  "PAN_PROOF": {
+   "pan": "AABPR1234K",
+   "name": "Ravi Kumar Reddy"
+  },
+  "GST_CERT": {
+   "gstin": "36AABPR1234K1ZR",
+   "pan": "AABPR1234K",
+   "name": "Ravi Kumar Reddy",
+   "trade_name": "Sri Varahi Traders"
+  },
+  "COMPANY_REG": {
+   "name": "Sri Varahi Traders",
+   "reg_number": "UDYAM-TS-20-1234567"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Ravi Kumar Reddy",
+   "account_number": "6677889900",
+   "ifsc": "KKBK0004455",
+   "bank_name": "Kotak Mahindra Bank"
+  }
+ },
+ "E3_shared_bank": {
+  "PAN_PROOF": {
+   "pan": "AAICZ4821K",
+   "name": "Zephyr Components Private Limited"
+  },
+  "GST_CERT": {
+   "gstin": "29AAICZ4821K1ZR",
+   "pan": "AAICZ4821K",
+   "name": "Zephyr Components Private Limited",
+   "trade_name": "Zephyr Components"
+  },
+  "COMPANY_REG": {
+   "name": "Zephyr Components Private Limited",
+   "reg_number": "U29100KA2019PTC091234"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Zephyr Components Private Limited",
+   "account_number": "50200012345678",
+   "ifsc": "HDFC0001234",
+   "bank_name": "HDFC Bank"
+  }
+ },
+ "E3b_blocklisted_bank": {
+  "PAN_PROOF": {
+   "pan": "AAJCN5533Q",
+   "name": "Nimbus Trading Private Limited"
+  },
+  "GST_CERT": {
+   "gstin": "27AAJCN5533Q1ZR",
+   "pan": "AAJCN5533Q",
+   "name": "Nimbus Trading Private Limited",
+   "trade_name": "Nimbus Trading"
+  },
+  "COMPANY_REG": {
+   "name": "Nimbus Trading Private Limited",
+   "reg_number": "U51909MH2020PTC334455"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Nimbus Trading Private Limited",
+   "account_number": "9999000011112222",
+   "ifsc": "HDFC0009999",
+   "bank_name": "HDFC Bank"
+  }
+ },
+ "E4_resubmission": {
+  "PAN_PROOF": {
+   "pan": "AAFCP6612R",
+   "name": "Pinnacle Interiors Private Limited"
+  },
+  "GST_CERT": {
+   "gstin": "29AAFCP6612R1ZP",
+   "pan": "AAFCP6612R",
+   "name": "Pinnacle Interiors Private Limited",
+   "trade_name": "Pinnacle Interiors"
+  },
+  "COMPANY_REG": {
+   "name": "Pinnacle Interiors Private Limited",
+   "reg_number": "U74110KA2018PTC077889"
+  },
+  "BANK_PROOF": {
+   "account_holder": "Pinnacle Designs",
+   "account_number": "12345678901",
+   "ifsc": "HDFC0002200",
+   "bank_name": "HDFC Bank"
+  }
+ }
+}

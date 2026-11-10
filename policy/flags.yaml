@@ -1,0 +1,205 @@
+# One entry per flag code the engine can emit. communication.py renders the vendor ask from
+# `vendor_ask` and reviewer escalations render from `reviewer_step`, so the vendor message and
+# the reviewer instruction always come from one source.
+#
+# Fields:
+#   severity   default severity (LOW | MEDIUM | HIGH); a check may override per result.
+#   blocking   whether this flag blocks automatic approval.
+#   waiting_on VENDOR (the vendor can fix it) or REVIEWER (needs human judgement). Ignored when not blocking.
+#   assurance  FORMAT (syntax/checksum), CONSISTENCY (two sources agree) or NOT_VERIFIED (needs an outside registry).
+#   vendor_ask template for the vendor-facing request. Placeholders: {doc} {field} {value} {ref} {other_ref}.
+#   reviewer_step what the reviewer should do when this is routed to them.
+
+flags:
+
+  MISSING_FIELD:
+    severity: MEDIUM
+    blocking: true
+    waiting_on: VENDOR
+    assurance: FORMAT
+    vendor_ask: "Please provide your {field}."
+    reviewer_step: "Confirm the field is genuinely required for this vendor type before chasing the vendor."
+
+  TERMS_NOT_ACCEPTED:
+    severity: MEDIUM
+    blocking: true
+    waiting_on: VENDOR
+    assurance: FORMAT
+    vendor_ask: "Please accept the vendor declaration and resubmit."
+    reviewer_step: "No action; the vendor must tick the declaration."
+
+  INVALID_FORMAT:
+    severity: MEDIUM
+    blocking: true
+    waiting_on: VENDOR
+    assurance: FORMAT
+    vendor_ask: "The {field} is not in a valid format. Please correct it."
+    reviewer_step: "Check whether the value is a typo or a genuinely different identifier."
+
+  COUNTRY_TAX_CONFLICT:
+    severity: HIGH
+    blocking: true
+    waiting_on: VENDOR
+    assurance: CONSISTENCY
+    vendor_ask: "Your stated country and tax identifier do not match. Please confirm the country and provide the correct identifier."
+    reviewer_step: "Confirm the vendor's country and which registration scheme applies before re-running."
+
+  ENTITY_PAN_INCONSISTENT:
+    severity: MEDIUM
+    blocking: true
+    waiting_on: VENDOR
+    assurance: CONSISTENCY
+    vendor_ask: "The PAN does not look consistent with the entity type. Please confirm the entity type and PAN."
+    reviewer_step: "Check the 4th PAN character against the declared entity type; a proprietorship uses P."
+
+  ID_INCONSISTENT:
+    severity: HIGH
+    blocking: true
+    waiting_on: VENDOR
+    assurance: CONSISTENCY
+    vendor_ask: "The {field} on your {doc} differs from the one entered. Please correct whichever is wrong."
+    reviewer_step: "Compare the entered identifier with the document and decide which is authoritative."
+
+  GSTIN_STATE_MISMATCH:
+    severity: MEDIUM
+    blocking: true
+    waiting_on: VENDOR
+    assurance: CONSISTENCY
+    vendor_ask: "Your GSTIN is registered in a different state from your billing state. Please provide the GSTIN for that state, or confirm you hold GST in more than one state."
+    reviewer_step: "A business can hold GST in several states; confirm with the vendor rather than reject."
+
+  PINCODE_STATE_MISMATCH:
+    severity: MEDIUM
+    blocking: true
+    waiting_on: VENDOR
+    assurance: CONSISTENCY
+    vendor_ask: "The PIN code is not in the postal zone for the state entered. Please check the PIN code and the state."
+    reviewer_step: "Confirm the address; border PIN codes can sit near a zone boundary."
+
+  MISSING_DOCUMENT:
+    severity: MEDIUM
+    blocking: true
+    waiting_on: VENDOR
+    assurance: FORMAT
+    vendor_ask: "Please upload your {doc}."
+    reviewer_step: "Confirm the document is required for this vendor type."
+
+  WRONG_DOCUMENT:
+    severity: HIGH
+    blocking: true
+    waiting_on: VENDOR
+    assurance: CONSISTENCY
+    vendor_ask: "The file uploaded as your {doc} appears to be a different document. Please upload the correct {doc}."
+    reviewer_step: "Open the file and confirm it is the wrong type before asking again."
+
+  UNREADABLE_DOCUMENT:
+    severity: MEDIUM
+    blocking: true
+    waiting_on: VENDOR
+    assurance: FORMAT
+    vendor_ask: "The file '{value}' could not be read reliably. Please upload a sharper photo or a clear, text-based PDF of your {doc}."
+    reviewer_step: "Open the file; if it is legible by eye, correct the extracted values by hand and re-run."
+
+  UNCERTAIN_DOCUMENT:
+    severity: MEDIUM
+    blocking: true
+    waiting_on: VENDOR
+    assurance: CONSISTENCY
+    vendor_ask: "We could not confirm that '{value}' is a {doc}. Please re-upload a clear copy."
+    reviewer_step: "Open the file and confirm the document category."
+
+  UNSUPPORTED_COUNTRY_RULE:
+    severity: MEDIUM
+    blocking: true
+    waiting_on: VENDOR
+    assurance: NOT_VERIFIED
+    vendor_ask: "We cannot automatically verify tax identifiers for your country; our team will review it manually. No action needed unless we contact you."
+    reviewer_step: "No automated rule exists for this country; verify the tax identifier manually."
+
+  BANK_COUNTRY_MISMATCH:
+    severity: LOW
+    blocking: true
+    waiting_on: VENDOR
+    assurance: CONSISTENCY
+    vendor_ask: "Your bank is in a different country from your company. Please confirm this is intended."
+    reviewer_step: "Cross-border accounts are allowed; confirm the arrangement is deliberate."
+
+  NAME_MISMATCH:
+    severity: HIGH
+    blocking: true
+    waiting_on: REVIEWER
+    assurance: CONSISTENCY
+    vendor_ask: "The name on your {doc} does not match the legal name you entered. Please correct the name or upload the matching document."
+    reviewer_step: "Compare the names; a slight variant can be confirmed, a material difference needs the matching document."
+
+  BANK_HOLDER_MISMATCH:
+    severity: HIGH
+    blocking: true
+    waiting_on: VENDOR
+    assurance: CONSISTENCY
+    vendor_ask: "The bank account holder does not match the account name expected. Please provide a bank account held in that name, or a bank letter explaining the difference."
+    reviewer_step: "A third-party account needs confirmation; this is a prompt for evidence, not a fraud finding."
+
+  LOW_CONFIDENCE_OCR:
+    severity: MEDIUM
+    blocking: true
+    waiting_on: VENDOR
+    assurance: FORMAT
+    vendor_ask: "We couldn't read the {field} on your {doc} clearly. Please upload a sharper photo or a text-based PDF."
+    reviewer_step: "Open the document; if legible, correct the value by hand and re-run."
+
+  UNCERTAIN_EXTRACTION:
+    severity: LOW
+    blocking: true
+    waiting_on: VENDOR
+    assurance: CONSISTENCY
+    vendor_ask: "We couldn't read the {field} on your {doc}. Please upload a clearer copy."
+    reviewer_step: "Open the document and read the value by hand if possible."
+
+  IFSC_BANK_MISMATCH:
+    severity: MEDIUM
+    blocking: true
+    waiting_on: VENDOR
+    assurance: CONSISTENCY
+    vendor_ask: "Your IFSC belongs to a different bank from the one named. Please check the IFSC and the bank name."
+    reviewer_step: "The first four IFSC letters identify the bank; confirm which is correct."
+
+  DUPLICATE_IDENTIFIER:
+    severity: HIGH
+    blocking: true
+    waiting_on: REVIEWER
+    assurance: CONSISTENCY
+    vendor_ask: "Our records already contain a registration using the same {field} (reference {other_ref}). Please tell us whether this is an update to that registration or a different entity."
+    reviewer_step: "Decide whether this is a resubmission, a profile update, or a distinct entity."
+
+  BANK_SHARED:
+    severity: HIGH
+    blocking: true
+    waiting_on: REVIEWER
+    assurance: CONSISTENCY
+    vendor_ask: "The bank account provided is already registered to another vendor (reference {other_ref}). Please confirm this is correct, or provide the vendor's own account."
+    reviewer_step: "Two vendors sharing one bank account needs human confirmation against both records."
+
+  BANK_CHANGE:
+    severity: HIGH
+    blocking: true
+    waiting_on: REVIEWER
+    assurance: NOT_VERIFIED
+    vendor_ask: "A change of bank account has been requested. A reviewer will confirm the new account before any payment is released."
+    reviewer_step: "Confirm the new bank account against the previously registered email and re-check it against other vendors before lifting the payment hold."
+
+  POLICY_BLOCKLIST:
+    severity: HIGH
+    blocking: true
+    waiting_on: REVIEWER
+    assurance: NOT_VERIFIED
+    vendor_ask: "Your registration cannot proceed under our vendor policy."
+    reviewer_step: "A blocklist hit is a written policy disqualification; confirm and communicate the outcome with the recorded reason."
+
+  FREE_EMAIL_DOMAIN:
+    severity: LOW
+    blocking: false
+    waiting_on: NONE
+    assurance: FORMAT
+    vendor_ask: ""
+    reviewer_step: "Note only; a company on a free email domain is worth watching but is not blocking."

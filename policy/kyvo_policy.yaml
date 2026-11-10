@@ -1,0 +1,170 @@
+# Kyvo vendor onboarding policy.
+# One versioned source for every threshold and rule switch. config.py loads this file;
+# nothing in the engine is hard-coded. Change a value here, bump `semver`, and regenerate
+# policy/kyvo_policy.lock (python cli.py policy --lock), or the policy lock test fails.
+#
+# Every threshold entry carries: value, unit, why (one sentence), owner (the team that would
+# own it in a real company), if_raised and if_lowered (what moves in the outcomes).
+# Reference lookup tables that are facts of the world, not tunable thresholds
+# (GST state codes, postal zones, country tax schemes, PAN holder letters) stay in config.py.
+
+semver: "2.0.0"
+
+thresholds:
+
+  name_exact:
+    value: 0.999
+    unit: similarity ratio (0 to 1)
+    why: At or above this two names are treated as the same after normalisation, so an identifier-grade match is exact, not fuzzy.
+    owner: procurement
+    if_raised: Nothing practical changes; it already means "identical after normalisation".
+    if_lowered: Near-identical names would count as exact and skip the reviewer, weakening name assurance.
+
+  name_similar:
+    value: 0.85
+    unit: similarity ratio (0 to 1)
+    why: Between this and name_exact a name difference is a slight variant (WARN for a reviewer), never a rejection; below it the names are materially different (FAIL).
+    owner: procurement
+    if_raised: More small spelling variants fall to FAIL, so more vendors are held as a name mismatch (more friction).
+    if_lowered: More genuinely different names pass as "similar", so weaker name checking and higher unsafe risk.
+
+  ocr_min_doc_conf:
+    value: 0.60
+    unit: mean OCR word confidence (0 to 1)
+    why: Below this the whole photo or scan is treated as unreadable and held for a reviewer rather than guessed at.
+    owner: compliance
+    if_raised: More photos are called unreadable, so more vendors are asked for a sharper image (more friction).
+    if_lowered: Poorer images are accepted, raising the chance of a misread value being trusted.
+
+  ocr_min_field_conf:
+    value: 0.80
+    unit: OCR word confidence (0 to 1)
+    why: A value read below this counts only if it exactly equals what the vendor typed; otherwise a reviewer must confirm it.
+    owner: compliance
+    if_raised: More OCR values need an exact typed match, so more documents go to a reviewer (more friction).
+    if_lowered: Low-confidence reads are trusted more readily, raising unsafe risk.
+
+  ocr_dpi:
+    value: 300
+    unit: dots per inch
+    why: Render resolution for image-only PDF pages before OCR; 300 dpi is the usual floor for reliable text.
+    owner: compliance
+    if_raised: Sharper rendering and slightly better OCR, at more time and memory per page.
+    if_lowered: Faster OCR but more misreads on small print.
+
+  min_text_chars:
+    value: 40
+    unit: characters
+    why: A PDF whose text layer holds fewer characters than this is treated as scanned and sent to OCR.
+    owner: compliance
+    if_raised: More thin-text PDFs are routed to OCR instead of trusting a sparse text layer.
+    if_lowered: More nearly-empty PDFs are treated as readable text, risking missed content.
+
+  max_upload_mb:
+    value: 1
+    unit: megabytes
+    why: Matches the vendor portal's documented per-file upload limit.
+    owner: procurement
+    if_raised: Larger files are accepted, using more storage and processing time.
+    if_lowered: More uploads are rejected at intake and the vendor is asked to compress them.
+
+  reminder_days_first:
+    value: 3
+    unit: days
+    why: A first reminder is drafted for a vendor who has not replied to open requests after this many days.
+    owner: procurement
+    if_raised: Vendors get more time before the first nudge, slowing resolution.
+    if_lowered: Vendors are chased sooner, which can feel aggressive.
+
+  reminder_days_second:
+    value: 7
+    unit: days
+    why: A second reminder is drafted after this many days with requests still open.
+    owner: procurement
+    if_raised: Longer gap before the final nudge.
+    if_lowered: The second reminder lands sooner after the first.
+
+  stale_days:
+    value: 14
+    unit: days
+    why: After this long with open requests a submission is marked stale and escalated with a recommendation to close as rejected; closing still needs a reviewer.
+    owner: procurement
+    if_raised: Abandoned applications stay open longer.
+    if_lowered: Applications are escalated for closure sooner, risking closing ones the vendor was still working on.
+
+risk_weights:
+  # Severity rank of a blocking check; the submission's risk level is the highest rank present.
+  low:
+    value: 1
+    unit: rank
+    why: A minor issue (for example a slightly different name) contributes low risk.
+    owner: compliance
+    if_raised: Minor issues would push risk up, over-flagging.
+    if_lowered: Not applicable; this is the floor.
+  medium:
+    value: 2
+    unit: rank
+    why: A format or consistency issue needing a correction contributes medium risk.
+    owner: compliance
+    if_raised: Medium issues read as high risk, more escalation.
+    if_lowered: Medium issues read as low risk, less escalation.
+  high:
+    value: 3
+    unit: rank
+    why: A material mismatch, duplicate, shared or changed bank account, or a blocklist hit contributes high risk.
+    owner: compliance
+    if_raised: Not applicable; this is the ceiling.
+    if_lowered: Serious issues would look less risky, weakening escalation.
+
+approval_rule:
+  # Part B two-source rule: APPROVED requires CONSISTENCY (two independent sources agree)
+  # on each of these identities. Everything an outside registry would confirm stays NOT_VERIFIED.
+  domestic_requires_consistency_on: [pan, legal_name, bank_account]
+  international_requires_consistency_on: [registration_number, legal_name, bank_account]
+  why: A vendor is only approved when the key identities agree across at least two independent sources; registry-grade facts are never claimed.
+  owner: compliance
+
+paths:
+  blocklist: policy/blocklist.yaml
+  flags: policy/flags.yaml
+
+reviewers:
+  # Only these senders may issue REVIEWER_DECISION commands. Demo addresses only (.example).
+  allowlist:
+    - reviewer@kyvo.example
+    - compliance@kyvo.example
+  why: A reviewer decision (approve, reject, request) is only honoured from a known reviewer address; anyone else is ignored and logged.
+  owner: compliance
+
+mailer:
+  # Outgoing never leaves the machine unless KYVO_SEND=1 and SMTP_* are set. Never send to .example.
+  default_send_mode: outbox
+  never_send_domains: [example, example.com, example.org, example.net, test, localhost, invalid]
+  why: The demo and tests must never send real email; drafts are written as .eml files.
+  owner: procurement
+
+tables:
+  ifsc_bank:
+    why: First four letters of an IFSC identify the bank; used to flag an IFSC that does not match the stated bank name. Unknown codes are not checked.
+    owner: finance
+    map:
+      SBIN: State Bank of India
+      HDFC: HDFC Bank
+      ICIC: ICICI Bank
+      UTIB: Axis Bank
+      KKBK: Kotak Mahindra Bank
+      PUNB: Punjab National Bank
+      BARB: Bank of Baroda
+      CNRB: Canara Bank
+      UBIN: Union Bank of India
+      IDIB: Indian Bank
+      IOBA: Indian Overseas Bank
+      FDRL: Federal Bank
+      YESB: Yes Bank
+      INDB: IndusInd Bank
+      IDFB: IDFC First Bank
+
+  free_email_domains:
+    why: A registered company or LLP using a personal or free email domain is worth a note, but is never blocking.
+    owner: procurement
+    values: [gmail, yahoo, outlook, hotmail, rediffmail]

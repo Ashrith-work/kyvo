@@ -50,13 +50,29 @@ CREATE TABLE IF NOT EXISTS otp_tokens(
   used INTEGER DEFAULT 0, attempts INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS registration_steps(
   id INTEGER PRIMARY KEY, vendor_id INTEGER, step_no INTEGER, data_json TEXT, completed INTEGER DEFAULT 0, updated_at TEXT);
+CREATE TABLE IF NOT EXISTS inbound_items(
+  id INTEGER PRIMARY KEY, item_hash TEXT UNIQUE, item_type TEXT, source TEXT, ref TEXT,
+  status TEXT, error TEXT, created_at TEXT);
 CREATE INDEX IF NOT EXISTS ix_ident ON vendor_identifiers(id_type, id_value);
 CREATE INDEX IF NOT EXISTS ix_val ON validation_results(submission_id, run_no);
 CREATE INDEX IF NOT EXISTS ix_fur ON follow_up_requests(submission_id, status);
 """
 
+# ---- injectable clock ------------------------------------------------------------
+# Nothing in the lifecycle reads the system clock directly; everything times off now()/now_dt(),
+# which delegate to an injected clock when one is installed (the demo and tests use a simulated one).
+_CLOCK = None
+
+def set_clock(fn):
+    """Install a callable returning a timezone-aware datetime, or None to use system UTC."""
+    global _CLOCK
+    _CLOCK = fn
+
+def now_dt():
+    return _CLOCK() if _CLOCK else dt.datetime.now(dt.timezone.utc)
+
 def now() -> str:
-    return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    return now_dt().isoformat(timespec="seconds")
 
 # Columns added after the first release. Guarded so an existing kyvo.db keeps opening.
 MIGRATIONS = [
@@ -70,6 +86,8 @@ MIGRATIONS = [
     ("vendors", "reg_number", "TEXT"),
     ("vendors", "signup_region", "TEXT"),
     ("vendors", "signup_type", "TEXT"),
+    ("validation_results", "assurance", "TEXT"),      # Part B: FORMAT | CONSISTENCY | NOT_VERIFIED
+    ("decisions", "payment_hold", "INTEGER DEFAULT 0"),  # Part E: bank-change hold
 ]
 
 def migrate(conn):
@@ -172,6 +190,20 @@ def find_shared_bank(conn, vendor_id, bank_idents: list) -> list:
             hits.append({**r, "ref": ref(r["submission_id"]) if r["submission_id"] else "-",
                          "prior_status": d["status"] if d else "IN_PROGRESS"})
     return hits
+
+def seen_inbound(conn, item_hash):
+    return one(conn, "SELECT * FROM inbound_items WHERE item_hash=?", (item_hash,))
+
+def record_inbound(conn, item_hash, item_type, source, ref=None, status="processed", error=None):
+    return insert(conn, "inbound_items", item_hash=item_hash, item_type=item_type, source=source,
+                  ref=ref, status=status, error=error, created_at=now())
+
+def issue_vendor_id(conn, vendor_row_id) -> str:
+    """Assign a public Vendor ID (V#####) to a vendor row once, derived from its row id."""
+    vid = f"V{int(vendor_row_id):05d}"
+    conn.execute("UPDATE vendors SET vendor_id=? WHERE id=? AND (vendor_id IS NULL OR vendor_id='')", (vid, vendor_row_id))
+    conn.commit()
+    return (one(conn, "SELECT vendor_id FROM vendors WHERE id=?", (vendor_row_id,)) or {}).get("vendor_id") or vid
 
 def blocklist_hits(conn, identifiers: list) -> list:
     hits = []

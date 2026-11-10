@@ -4,6 +4,12 @@ sys.path.insert(0, ROOT)
 import database as db
 from sample_data import generate as gen
 
+@pytest.fixture(autouse=True)
+def _reset_clock():
+    """The injectable clock is a process global; make sure a test that installs one cannot leak it."""
+    yield
+    db.set_clock(None)
+
 @pytest.fixture(scope="session")
 def sample_dir(tmp_path_factory):
     d = str(tmp_path_factory.mktemp("samples"))

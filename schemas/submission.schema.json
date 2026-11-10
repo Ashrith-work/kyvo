@@ -52,7 +52,7 @@
      "then": {"required": ["country", "reg_number", "tax_id", "trc_number", "bank_country"]}},
     {"if": {"properties": {"entity_type": {"const": "Proprietorship"}}},
      "then": {"required": ["proprietor_name"]}},
-    {"if": {"properties": {"domestic_type": {"const": "PAN with GST"}}},
+    {"if": {"properties": {"domestic_type": {"const": "PAN with GST"}}, "required": ["domestic_type"]},
      "then": {"required": ["gstin"]}}
   ],
   "documents": {

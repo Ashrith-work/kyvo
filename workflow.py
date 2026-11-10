@@ -6,6 +6,7 @@ import extraction as ex
 import validation as va
 import decision_engine as de
 import communication as cm
+import assurance as asr
 
 STAGES = ["Submission received", "Document intake", "Classification", "Field extraction", "Validation",
           "Cross-document reconciliation", "Risk assessment", "Decision", "Email draft", "Audit persistence"]
@@ -13,7 +14,17 @@ STAGES = ["Submission received", "Document intake", "Classification", "Field ext
 def _safe_name(name):
     return re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(name or "file"))[:80]
 
+# Manual (vendor portal) field names accepted as aliases for Kyvo's internal keys.
+FORM_ALIASES = {"firm_name": "legal_name", "ownership": "entity_type", "business_reg_number": "reg_number",
+                "company_phone": "phone", "contact_name": "contact_person"}
+
 def normalize_form(form: dict) -> dict:
+    form = dict(form)
+    for alias, internal in FORM_ALIASES.items():          # accept manual field names; internal keys win if both present
+        if alias in form and not form.get(internal):
+            form[internal] = form.pop(alias)
+    if (form.get("address_line1") or form.get("address_line2")) and not form.get("address"):
+        form["address"] = ", ".join(x for x in (form.get("address_line1"), form.get("address_line2")) if x)
     f = {k: (v.strip() if isinstance(v, str) else v) for k, v in form.items()}
     for k in ("pan", "gstin", "ifsc", "swift", "tax_id", "reg_number"):
         if f.get(k):
@@ -40,7 +51,7 @@ def _persist_results(conn, sid, run_no, results):
         db.insert(conn, "validation_results", submission_id=sid, run_no=run_no, stage=r["stage"], rule_id=r["rule_id"],
                   label=r["label"], status=r["status"], severity=r["severity"], blocking=r["blocking"], source=r["source"],
                   provenance=r["provenance"], evidence=r["evidence"], explanation=r["explanation"], action=r["action"],
-                  flag_code=r["flag_code"], created_at=db.now())
+                  flag_code=r["flag_code"], assurance=r.get("assurance"), created_at=db.now())
 
 def _summ(results):
     return {s: sum(1 for r in results if r["status"] == s) for s in ("PASS", "FAIL", "WARN", "NOT_CHECKED")}
@@ -55,6 +66,13 @@ def _make_flags(conn, sid, run_no, results):
     return flags
 
 def _decide_and_draft(conn, sid, run_no, form, results, actor):
+    augmented = asr.enforce_two_source(results, form)   # Part B two-source gate
+    extra = augmented[len(results):]
+    if extra:                                           # the gate fired: persist, flag and open its request too
+        _persist_results(conn, sid, run_no, extra)
+        _make_flags(conn, sid, run_no, extra)
+        _sync_follow_ups(conn, sid, run_no, augmented)
+    results = augmented
     dec = de.decide(results)
     dec["waiting_on"] = de.compute_waiting_on(results, dec["status"])
     did = db.insert(conn, "decisions", submission_id=sid, run_no=run_no, status=dec["status"],
@@ -158,8 +176,11 @@ def _sync_follow_ups(conn, sid, run_no, results):
             db.insert(conn, "follow_up_requests", submission_id=sid, rule_id=rule_id, about=about, ask=ask,
                       status="OPEN", opened_run=run_no, resolved_run=None, created_at=db.now(), updated_at=db.now())
         elif open_by_rule[rule_id]["ask"] != ask:
-            conn.execute("UPDATE follow_up_requests SET ask=?, about=?, updated_at=? WHERE id=?",
-                         (ask, about, db.now(), open_by_rule[rule_id]["id"]))
+            # the ask changed for the same rule: supersede the old one and open a fresh request
+            conn.execute("UPDATE follow_up_requests SET status='SUPERSEDED', resolved_run=?, updated_at=? WHERE id=?",
+                         (run_no, db.now(), open_by_rule[rule_id]["id"]))
+            db.insert(conn, "follow_up_requests", submission_id=sid, rule_id=rule_id, about=about, ask=ask,
+                      status="OPEN", opened_run=run_no, resolved_run=None, created_at=db.now(), updated_at=db.now())
     conn.commit()
 
 def _open_requests(conn, sid):
@@ -174,10 +195,17 @@ def _risk_inputs(conn, sid, vendor_id, f):
     return dups, blocked, shared
 
 def seed_demo(conn):
-    """Idempotent demo seed: one fictional blocklisted bank account (E3b) so the demo has a REJECTED outcome."""
-    acct = "HDFC0009999:9999000011112222"
-    if not db.one(conn, "SELECT id FROM policy_blocklist WHERE id_type='BANK_ACCT' AND id_value=?", (acct,)):
-        add_blocklist(conn, "BANK_ACCT", acct, "Account rejected for payment fraud (fictional demo entry).", "compliance.seed")
+    """Idempotent demo seed: load the fictional policy blocklist (E3b) from policy/blocklist.yaml."""
+    import yaml
+    try:
+        with open(BLOCKLIST_PATH, "rb") as fh:
+            entries = (yaml.safe_load(fh.read().decode("utf-8")) or {}).get("entries", [])
+    except FileNotFoundError:
+        entries = []
+    for e in entries:
+        val = str(e["id_value"]).strip().upper()
+        if not db.one(conn, "SELECT id FROM policy_blocklist WHERE id_type=? AND id_value=?", (e["id_type"], val)):
+            add_blocklist(conn, e["id_type"], val, e["reason"], e.get("added_by", "compliance.seed"))
 
 def run_workflow(conn, form: dict, files: dict, upload_dir: str, actor: str = "system", vendor_row_id=None):
     """Generator of stage events. files: {expected_type: (filename, bytes)}. Final event has stage='complete'.
@@ -285,7 +313,10 @@ def decision_json(conn, sid) -> dict:
     dec = {"status": d["status"], "risk_level": d["risk_level"], "policy_version": d["policy_version"],
            "next_action": d["next_action"], "decided_at": d["created_at"]}
     waiting_on = d["waiting_on"] or de.compute_waiting_on(results, d["status"])
-    return de.decision_record(sid, vendor_id, run_no, results, dec, waiting_on, requests)
+    summary = asr.summarize(results, json.loads(s["snapshot_json"]))
+    hold = db.one(conn, "SELECT COUNT(*) AS n FROM payments WHERE vendor_id=? AND status='ON_HOLD'", (s["vendor_id"],))
+    payment_hold = 1 if (hold and hold["n"]) else (d.get("payment_hold") or 0)
+    return de.decision_record(sid, vendor_id, run_no, results, dec, waiting_on, requests, summary, payment_hold)
 
 # ---- reviewer actions & re-run -----------------------------------------------------
 def correct_field(conn, sid, document_id, field, new_value, reviewer, reason):
@@ -375,9 +406,10 @@ def reminders_due(conn, now=None):
     Returns one row per pending submission with an open request: {submission_id, ref, days_open, action, stale}."""
     import datetime as _dt
     if now is None:
-        now = _dt.datetime.now(_dt.timezone.utc)
+        now = db.now_dt()
     elif isinstance(now, str):
         now = _dt.datetime.fromisoformat(now)
+    first_day, second_day = REMINDER_DAYS
     out = []
     for r in db.rows(conn, "SELECT id FROM submissions WHERE status='PENDING'"):
         sid = r["id"]
@@ -385,15 +417,15 @@ def reminders_due(conn, now=None):
         if not oldest or not oldest["t"]:
             continue
         days = (now - _dt.datetime.fromisoformat(oldest["t"])).days
-        if days >= 14:
+        if days >= STALE_DAYS:
             if not (db.one(conn, "SELECT stale FROM submissions WHERE id=?", (sid,)) or {}).get("stale"):
                 conn.execute("UPDATE submissions SET stale=1 WHERE id=?", (sid,)); conn.commit()
                 db.audit(conn, sid, "MARKED_STALE", "system", {"days_open": days})
             action = "Recommend: close as rejected (incomplete). A reviewer must confirm and comment."
-        elif days >= 7:
-            _draft_reminder(conn, sid, 2, days); action = "Second reminder drafted (day 7)."
-        elif days >= 3:
-            _draft_reminder(conn, sid, 1, days); action = "First reminder drafted (day 3)."
+        elif days >= second_day:
+            _draft_reminder(conn, sid, 2, days); action = f"Second reminder drafted (day {second_day})."
+        elif days >= first_day:
+            _draft_reminder(conn, sid, 1, days); action = f"First reminder drafted (day {first_day})."
         else:
             continue
         out.append({"submission_id": sid, "ref": db.ref(sid), "days_open": days, "action": action, "stale": days >= 14})

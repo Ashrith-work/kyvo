@@ -34,3 +34,12 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# generated workspaces / outputs
+workspace/
+out/
+
+# secrets (never commit)
+.env
+*.key
+llm_key*.txt

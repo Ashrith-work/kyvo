@@ -1,0 +1,8 @@
+# Policy blocklist. A hit here is a written disqualification: the submission is REJECTED
+# automatically with the recorded reason. All entries are fictional demo data.
+# id_type is BANK_ACCT (code:account), PAN, GSTIN, REG_NO or TAX_ID.
+entries:
+  - id_type: BANK_ACCT
+    id_value: "HDFC0009999:9999000011112222"
+    reason: "Account rejected for payment fraud (fictional demo entry)."
+    added_by: compliance.seed
