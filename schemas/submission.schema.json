@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kyvo.example/schemas/submission.schema.json",
+  "title": "Kyvo vendor submission",
+  "description": "One vendor submission, modelled on a university vendor registration portal (sign-up, organisation, bank, services, documents). Manual field names are mapped onto Kyvo's internal keys; legacy keys are retained.",
+  "type": "object",
+  "required": ["region", "legal_name", "entity_type", "contact_person", "email", "phone", "address",
+               "bank_holder", "account_number", "bank_name", "service_category", "service_description", "terms_accepted"],
+  "properties": {
+    "region": {"enum": ["Domestic", "International"], "description": "Sign-up: Domestic (within India) or International (outside India)."},
+    "domestic_type": {"enum": ["PAN with GST", "PAN without GST", null], "description": "Domestic vendor type; null for International."},
+    "trc_applicable": {"type": "boolean", "description": "Always true for International (TRC is mandatory)."},
+
+    "legal_name": {"type": "string", "description": "Firm / legal name (manual: firm_name)."},
+    "trading_name": {"type": "string", "description": "Trade name (optional)."},
+    "entity_type": {"type": "string", "description": "Ownership (reuses ENTITY_TYPES): Private/Public Limited, LLP, Partnership Firm, Proprietorship, Trust / Society, Other."},
+    "proprietor_name": {"type": "string", "description": "Required when entity_type is Proprietorship."},
+    "contact_person": {"type": "string", "description": "Contact name (manual: contact_name)."},
+    "email": {"type": "string", "format": "email", "description": "Organisation / contact email; the sign-up OTP address."},
+    "contact_email": {"type": "string", "description": "Contact email (optional; defaults to email)."},
+    "phone": {"type": "string", "description": "Company phone (manual: company_phone)."},
+    "alt_phone": {"type": "string", "description": "Alternate phone (optional)."},
+    "contact_mobile": {"type": "string", "description": "Contact mobile (optional)."},
+    "address": {"type": "string", "description": "Registered address (manual: address_line1 + address_line2)."},
+    "state": {"type": "string", "description": "State (required for Domestic)."},
+    "city": {"type": "string", "description": "City (required for Domestic)."},
+    "pincode": {"type": "string", "description": "PIN code, 6 digits for Domestic.", "pattern": "^$|^[0-9]{6}$"},
+    "country": {"type": "string", "description": "Country (India for Domestic)."},
+
+    "pan": {"type": "string", "description": "Domestic PAN (10 chars). Required for Domestic."},
+    "gstin": {"type": "string", "description": "GSTIN (15 chars). Only for 'PAN with GST'."},
+    "reg_number": {"type": "string", "description": "Domestic CIN/LLPIN (optional) or International business_reg_number (required)."},
+    "tax_id": {"type": "string", "description": "International tax identification number (EIN/VAT/TRN...)."},
+    "trc_number": {"type": "string", "description": "International Tax Residency Certificate number (required)."},
+
+    "bank_holder": {"type": "string", "description": "Account holder name."},
+    "account_number": {"type": "string", "description": "Bank account number / IBAN."},
+    "ifsc": {"type": "string", "description": "IFSC (Domestic)."},
+    "swift": {"type": "string", "description": "SWIFT/BIC (International)."},
+    "bank_name": {"type": "string", "description": "Bank name."},
+    "bank_country": {"type": "string", "description": "Bank country (International)."},
+
+    "service_category": {"type": "string", "description": "Service category (existing list)."},
+    "service_description": {"type": "string", "description": "Products / services description."},
+
+    "terms_accepted": {"type": "boolean", "description": "Declaration / terms accepted; must be true to submit."}
+  },
+  "allOf": [
+    {"if": {"properties": {"region": {"const": "Domestic"}}},
+     "then": {"required": ["pan", "ifsc", "state", "city", "pincode"]}},
+    {"if": {"properties": {"region": {"const": "International"}}},
+     "then": {"required": ["country", "reg_number", "tax_id", "trc_number", "bank_country"]}},
+    {"if": {"properties": {"entity_type": {"const": "Proprietorship"}}},
+     "then": {"required": ["proprietor_name"]}},
+    {"if": {"properties": {"domestic_type": {"const": "PAN with GST"}}},
+     "then": {"required": ["gstin"]}}
+  ],
+  "documents": {
+    "description": "Uploaded supporting files keyed by expected type. Allowed: PDF, JPG, PNG, DOC, DOCX, max 1 MB each.",
+    "domestic_PAN with GST": ["PAN_PROOF", "GST_CERT", "COMPANY_REG", "BANK_PROOF"],
+    "domestic_PAN without GST": ["PAN_PROOF", "COMPANY_REG", "BANK_PROOF"],
+    "international": ["COMPANY_REG", "BANK_PROOF", "TAX_CERT", "TRC"]
+  }
+}

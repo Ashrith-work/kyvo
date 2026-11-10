@@ -1,0 +1,52 @@
+name: Deploy demo to Hugging Face
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "*.py"
+      - "requirements.txt"
+      - "sample_data/**"
+      - "deploy/**"
+      - ".github/workflows/deploy-space.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-space
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Test, then deploy the Streamlit app
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt huggingface_hub
+
+      - name: Run test suite
+        run: python -m pytest -q
+
+      - name: Skip deploy (no HF_TOKEN secret)
+        if: env.HF_TOKEN == ''
+        run: echo "::notice::HF_TOKEN repository secret is not set, so nothing was deployed. Add it under Settings > Secrets and variables > Actions."
+
+      - name: Deploy to Hugging Face Space
+        if: env.HF_TOKEN != ''
+        run: python deploy/deploy_space.py

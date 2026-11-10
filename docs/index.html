@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Verivend: vendor onboarding verification</title>
-<meta name="description" content="Verivend reads a vendor's form and PDFs, checks them against written rules, and returns APPROVED, PENDING or REJECTED with evidence, an audit trail and a draft email. Deterministic Python rules, no LLM, no API key.">
+<title>Kyvo: vendor onboarding verification</title>
+<meta name="description" content="Kyvo reads a vendor's form and PDFs, checks them against written rules, and returns APPROVED, PENDING or REJECTED with evidence, an audit trail and a draft email. Deterministic Python rules, no LLM, no API key.">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Verivend: vendor onboarding verification">
+<meta property="og:title" content="Kyvo: vendor onboarding verification">
 <meta property="og:description" content="Deterministic vendor onboarding checks with evidence, an audit trail and a draft email. Zamp PS-2 case study.">
-<meta property="og:url" content="https://ashrith-work.github.io/verivend/">
-<meta property="og:image" content="https://ashrith-work.github.io/verivend/screenshot.png">
+<meta property="og:url" content="https://ashrith-work.github.io/kyvo/">
+<meta property="og:image" content="https://ashrith-work.github.io/kyvo/screenshot.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The Verivend landing page: the headline, a short description, and a screenshot of a pending verification decision.">
+<meta property="og:image:alt" content="The Kyvo landing page: the headline, a short description, and a screenshot of a pending verification decision.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#F7F6F2">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316181D'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11' fill='none' stroke='%23F7F6F2' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -187,9 +187,9 @@
 
 <header class="site-head">
   <div class="wrap head-inner">
-    <a class="wordmark" href="#top" aria-label="Verivend, back to top">
+    <a class="wordmark" href="#top" aria-label="Kyvo, back to top">
       <span class="mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 8.4l3.2 3.1L13 4.6" fill="none" stroke="#F7F6F2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-      Verivend
+      Kyvo
     </a>
     <nav class="site-nav" aria-label="Main">
       <ul>
@@ -197,7 +197,7 @@
         <li class="opt"><a href="#how">How it works</a></li>
         <li class="opt"><a href="#scenarios">Scenarios</a></li>
         <li class="opt"><a href="#run">Run it</a></li>
-        <li><a class="gh" href="https://github.com/Ashrith-work/verivend">GitHub</a></li>
+        <li><a class="gh" href="https://github.com/Ashrith-work/kyvo">GitHub</a></li>
       </ul>
     </nav>
   </div>
@@ -209,23 +209,23 @@
       <div>
         <span class="eyebrow">Zamp PS-2 case study. Independent build.</span>
         <h1>Vendor onboarding decisions you can trace back to the evidence</h1>
-        <p class="lede">Verivend reads a vendor's form and PDF documents, checks them against written rules, and returns APPROVED, PENDING or REJECTED. Every decision comes with the evidence behind each check, a full audit trail and an editable follow-up email draft.</p>
+        <p class="lede">Kyvo reads a vendor's form and PDF documents, checks them against written rules, and returns APPROVED, PENDING or REJECTED. Every decision comes with the evidence behind each check, a full audit trail and an editable follow-up email draft.</p>
         <div class="actions">
-          <a class="btn btn-primary" href="https://github.com/Ashrith-work/verivend">Read the code on GitHub</a>
+          <a class="btn btn-primary" href="https://github.com/Ashrith-work/kyvo">Read the code on GitHub</a>
           <a class="btn btn-secondary" href="#run">Run it locally</a>
         </div>
         <ul class="facts">
           <li>Deterministic Python rules</li>
           <li>No LLM and no API key</li>
-          <li>24 offline tests</li>
-          <li>Every run saved to SQLite</li>
+          <li>69 offline tests</li>
+          <li>Vendor portal and admin review</li>
         </ul>
       </div>
       <figure class="shot">
         <div class="frame">
           <div class="frame-bar" aria-hidden="true"><span></span><span></span><span></span></div>
           <img src="img/verdict.webp" width="1020" height="590" fetchpriority="high"
-               alt="Verivend verification detail for a fictional vendor, BrightPath Facility Services Private Limited. The status is PENDING with risk HIGH and human review required. Two high severity reasons say the bank account holder differs from the legal name, and the next action is to send the drafted follow-up email after human approval.">
+               alt="Kyvo verification detail for a fictional vendor, BrightPath Facility Services Private Limited. The status is PENDING with risk HIGH and human review required. Two high severity reasons say the bank account holder differs from the legal name, and the next action is to send the drafted follow-up email after human approval.">
         </div>
         <figcaption>Scenario 3 in the running app. The bank account holder differs from the legal name, so the submission is held for a reviewer instead of being approved or rejected.</figcaption>
       </figure>
@@ -235,7 +235,7 @@
   <section class="block" id="policy" aria-labelledby="policy-h">
     <div class="wrap">
       <div class="block-head">
-        <span class="eyebrow">Decision policy VV-POLICY-1.0</span>
+        <span class="eyebrow">Decision policy KYVO-POLICY-1.1</span>
         <h2 id="policy-h">Three outcomes, decided by written rules</h2>
         <p class="sub">The policy never invents a reason to reject, and never passes something it could not verify. Uncertainty goes to a person, not to auto-approval.</p>
       </div>
@@ -247,7 +247,7 @@
         </article>
         <article class="outcome hold">
           <h3><span class="status hold">PENDING</span></h3>
-          <p>Any FAIL, WARN or NOT_CHECKED result that blocks approval. That covers a missing, wrong or unreadable document, an unsupported country, an invalid format, a name or bank mismatch, a duplicate, or an uncertain extraction.</p>
+          <p>Any FAIL, WARN or NOT_CHECKED result that blocks approval. That covers a missing, wrong or unreadable document, an unsupported country, an invalid format, a name or bank mismatch, a subtle cross-check mismatch, a duplicate, a shared bank account, a bank change, or an uncertain extraction.</p>
           <p class="rule">Shown with its evidence so a reviewer can act.</p>
         </article>
         <article class="outcome no">
@@ -256,7 +256,7 @@
           <p class="rule">Fuzzy name differences never reject.</p>
         </article>
       </div>
-      <p class="note-line">Each decision also records a risk level taken from the most severe blocking check, the next action, whether human review is required, and the policy version.</p>
+      <p class="note-line">Each decision also records a risk level taken from the most severe blocking check, who it is waiting on (the vendor or a reviewer), the open requests to the vendor, the next action, and the policy version. The full decision matches <code>schemas/decision.schema.json</code> and can be downloaded as JSON.</p>
     </div>
   </section>
 
@@ -270,12 +270,12 @@
       <div class="split">
         <ol class="stages">
           <li><h3>Submission received</h3><p>The form is normalised, linked to an existing vendor by PAN, tax ID or name, and the required documents are listed.</p></li>
-          <li><h3>Document intake</h3><p>Each file is checked against the allowed types and the 5 MB demo limit, stored with a SHA-256 hash, and read with pdfplumber.</p></li>
-          <li><h3>Classification</h3><p>A weighted keyword model compares what each file looks like with what it was uploaded as. Unreadable scans are marked, not guessed.</p></li>
-          <li><h3>Field extraction</h3><p>Regex extraction keeps the page and the evidence text for every value.</p></li>
+          <li><h3>Document intake</h3><p>Each file is checked against the allowed types (PDF, JPG, PNG, DOC, DOCX) and the 1 MB limit, stored with a SHA-256 hash, and read with pdfplumber or python-docx. Phone photos and image-only PDF pages are read with Tesseract OCR; a .doc file is held for a reviewer.</p></li>
+          <li><h3>Classification</h3><p>A weighted keyword model compares what each file looks like with what it was uploaded as. A photo or scan that OCR cannot read reliably is marked unreadable, not guessed.</p></li>
+          <li><h3>Field extraction</h3><p>Regex extraction keeps the page and the evidence text for every value. Values read by OCR also keep the confidence of the line they came from.</p></li>
           <li><h3>Validation</h3><p>Conditional required fields, India-specific formats and the country rule registry.</p></li>
           <li><h3>Cross-document reconciliation</h3><p>Form values are compared with what the documents say.</p></li>
-          <li><h3>Risk assessment</h3><p>Duplicate identifiers and the policy blocklist.</p></li>
+          <li><h3>Risk assessment</h3><p>Duplicate identifiers, a shared bank account across vendors, and the policy blocklist.</p></li>
           <li><h3>Decision</h3><p>The three-status policy turns the checks into a verdict.</p></li>
           <li><h3>Email draft</h3><p>A follow-up or confirmation email is drafted and stored unsent.</p></li>
           <li><h3>Audit persistence</h3><p>The run counts the rows actually written to SQLite for the submission.</p></li>
@@ -284,7 +284,7 @@
           <div class="frame">
             <div class="frame-bar" aria-hidden="true"><span></span><span></span><span></span></div>
             <img src="img/live-run.webp" width="1020" height="860" loading="lazy" decoding="async"
-                 alt="The Live run page for scenario 3. A full progress bar sits above ten completed stages, each with a timestamp, from Submission received to Risk assessment. The Decision stage is expanded and shows PENDING, risk HIGH, human review required, two bank holder reasons and policy VV-POLICY-1.0.">
+                 alt="The Live run page for scenario 3. A full progress bar sits above ten completed stages, each with a timestamp, from Submission received to Risk assessment. The Decision stage is expanded and shows PENDING, risk HIGH, human review required, two bank holder reasons and policy KYVO-POLICY-1.1.">
           </div>
           <figcaption>The Live run page after scenario 3. A test checks that the completed stage events match the ten stages exactly.</figcaption>
         </figure>
@@ -310,6 +310,7 @@
             <li>Extracted values keep the page number and the text they came from.</li>
             <li>A reviewer can correct an extracted value. The correction is saved as a new row marked <code>reviewer_corrected</code> and the original stays.</li>
             <li>Re-running checks adds a new run. Earlier runs and decisions are preserved.</li>
+            <li>A value OCR reads with low confidence only passes if it matches what the vendor entered exactly. Otherwise it is held as a warning for a reviewer, never passed and never failed.</li>
           </ul>
         </div>
         <figure class="shot">
@@ -348,8 +349,8 @@
     <div class="wrap">
       <div class="block-head">
         <span class="eyebrow">Demo scenarios</span>
-        <h2 id="scen-h">Nine bundled cases, each covered by a test</h2>
-        <p class="sub">The repository ships a generator and nine fictional scenarios for common edge cases in vendor onboarding. Each one has an end-to-end test in <code>tests/test_scenarios.py</code> that asserts the expected outcome.</p>
+        <h2 id="scen-h">Baseline checks, each covered by a test</h2>
+        <p class="sub">The repository ships a generator, fictional documents and phone photos for eleven baseline checks in vendor onboarding, plus four designed edge cases below. Each one has an end-to-end test in <code>tests/</code> that asserts the expected outcome.</p>
       </div>
       <div class="table-wrap">
         <table>
@@ -366,11 +367,29 @@
             <tr><td class="num" data-label="#">6</td><td data-label="Scenario">Domestic PAN without GST (LLP). No GST document is requested.</td><td data-label="Outcome"><span class="status ok">APPROVED</span></td><td data-label="Flag"><span class="none">None</span></td><td data-label="Test"><code>test_<wbr>6_<wbr>pan_<wbr>without_<wbr>gst_<wbr>not_<wbr>asked_<wbr>for_<wbr>gst</code></td></tr>
             <tr><td class="num" data-label="#">7</td><td data-label="Scenario">International vendor with a US EIN. No PAN, GST or IFSC required.</td><td data-label="Outcome"><span class="status ok">APPROVED</span></td><td data-label="Flag"><span class="none">None</span></td><td data-label="Test"><code>test_<wbr>7_<wbr>international_<wbr>happy_<wbr>no_<wbr>india_<wbr>requirements</code></td></tr>
             <tr><td class="num" data-label="#">8</td><td data-label="Scenario">Brazil, where no country rule is configured. The tax ID check is NOT_CHECKED, never a false pass.</td><td data-label="Outcome"><span class="status hold">PENDING</span></td><td data-label="Flag"><code>UNSUPPORTED_<wbr>COUNTRY_<wbr>RULE</code></td><td data-label="Test"><code>test_<wbr>8_<wbr>unsupported_<wbr>country_<wbr>never_<wbr>false_<wbr>pass</code></td></tr>
-            <tr><td class="num" data-label="#">9</td><td data-label="Scenario">Scanned, image-only bank proof. The file is kept and marked unreadable.</td><td data-label="Outcome"><span class="status hold">PENDING</span></td><td data-label="Flag"><code>UNREADABLE_<wbr>DOCUMENT</code></td><td data-label="Test"><code>test_<wbr>9_<wbr>scanned_<wbr>pdf_<wbr>marked_<wbr>unreadable</code></td></tr>
+            <tr><td class="num" data-label="#">9</td><td data-label="Scenario">Scanned bank proof too poor for OCR to read. The file is kept and marked unreadable.</td><td data-label="Outcome"><span class="status hold">PENDING</span></td><td data-label="Flag"><code>UNREADABLE_<wbr>DOCUMENT</code></td><td data-label="Test"><code>test_<wbr>9_<wbr>scanned_<wbr>pdf_<wbr>marked_<wbr>unreadable</code></td></tr>
+            <tr><td class="num" data-label="#">10</td><td data-label="Scenario">PAN card and bank proof as phone photos. OCR reads them and repairs letter and digit swaps in identifiers.</td><td data-label="Outcome"><span class="status ok">APPROVED</span></td><td data-label="Flag"><span class="none">None</span></td><td data-label="Test"><code>test_<wbr>10_<wbr>phone_<wbr>photos_<wbr>read_<wbr>by_<wbr>ocr_<wbr>and_<wbr>approved</code></td></tr>
+            <tr><td class="num" data-label="#">11</td><td data-label="Scenario">Blurred, distant photo of the PAN card. It is held as unreadable and the vendor is asked for a sharper photo.</td><td data-label="Outcome"><span class="status hold">PENDING</span></td><td data-label="Flag"><code>UNREADABLE_<wbr>DOCUMENT</code></td><td data-label="Test"><code>test_<wbr>11_<wbr>blurry_<wbr>photo_<wbr>held_<wbr>as_<wbr>unreadable</code></td></tr>
           </tbody>
         </table>
       </div>
-      <p class="note-line">The same file has 15 more tests for the policy and edge cases, including the blocklist, reviewer actions, re-runs, unsafe file names and rejected upload types.</p>
+      <p class="note-line">The suite has 69 tests in all (2 OCR tests skip without Tesseract), covering the policy, the submission and decision contracts, the subtle cross-checks, the follow-up loop, the vendor portal and the four edge cases.</p>
+
+      <h3 style="margin-top:clamp(36px,5vw,56px)">Four designed edge cases</h3>
+      <div class="table-wrap" style="margin-top:18px">
+        <table>
+          <caption>Each edge case, why naive automation gets it wrong, and the outcome Kyvo reaches</caption>
+          <thead>
+            <tr><th scope="col">id</th><th scope="col">Situation</th><th scope="col">What Kyvo does</th><th scope="col">Outcome</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="num" data-label="id">E1</td><td data-label="Situation">Sole proprietor paid into the owner's personal account; the GST legal name is the proprietor and the trade name is the firm.</td><td data-label="What Kyvo does">Compares the proprietor name against the PAN, GST legal name and bank holder, and the firm name against the GST trade name.</td><td data-label="Outcome"><span class="status ok">APPROVED</span></td></tr>
+            <tr><td class="num" data-label="id">E2</td><td data-label="Situation">An approved vendor files a bank-details change with a new account.</td><td data-label="What Kyvo does">Holds payments, re-runs every bank check, confirms to the previously registered email, and never auto-approves.</td><td data-label="Outcome"><span class="status hold">PENDING</span></td></tr>
+            <tr><td class="num" data-label="id">E3</td><td data-label="Situation">A new vendor with a different PAN uses an account already registered to another vendor.</td><td data-label="What Kyvo does">A dedicated shared-account rule references both vendors and routes to a reviewer. A blocklisted account is rejected automatically.</td><td data-label="Outcome"><span class="status hold">PENDING</span> / <span class="status no">REJECTED</span></td></tr>
+            <tr><td class="num" data-label="id">E4</td><td data-label="Situation">A resubmission fixes the asked item (bank holder) but introduces a different IFSC.</td><td data-label="What Kyvo does">Resolves the holder request, opens an IFSC request, stays PENDING, then approves on a clean reply. The ledger records all three runs.</td><td data-label="Outcome"><span class="status hold">PENDING</span> &rarr; <span class="status ok">APPROVED</span></td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </section>
 
@@ -383,10 +402,10 @@
       <ul class="limits">
         <li><strong>Format and consistency checks only</strong><span>No verification of GST or PAN registry status, sanctions, legal existence or bank account ownership.</span></li>
         <li><strong>Five foreign countries have rules</strong><span>US, UK, Germany, Singapore and the UAE, plus India for domestic vendors. Any other country is marked NOT_CHECKED and held.</span></li>
-        <li><strong>No OCR</strong><span>Scanned PDFs and images are kept, marked unreadable and routed to a person.</span></li>
+        <li><strong>Basic OCR</strong><span>Photos and scans are read with Tesseract. Rotation is only corrected from the photo's own orientation tag. Blurred or low-confidence reads are held for a person, never passed.</span></li>
         <li><strong>Extraction is tuned to the sample documents</strong><span>Classification and extraction use keywords and regex. Real document layouts need more patterns.</span></li>
         <li><strong>Strict duplicate policy</strong><span>Any earlier submission with the same PAN, GSTIN, registration number or tax ID blocks auto-approval, including legitimate resubmissions.</span></li>
-        <li><strong>A single-user demo</strong><span>Emails are drafted, never sent. There is no authentication or role-based access, the upload limit is 5 MB, and it is not production-hardened.</span></li>
+        <li><strong>A single-user demo</strong><span>Emails and reminders are drafted, never sent. The portal has no real authentication; the OTP is shown on screen and payments, change requests and OTP use fictional seeded data. The upload limit is 1 MB. Not production-hardened.</span></li>
       </ul>
     </div>
   </section>
@@ -396,21 +415,22 @@
       <div>
         <span class="eyebrow">Run it locally</span>
         <h2 id="run-h">Runs offline in a few minutes</h2>
-        <p class="sub">No API key and no external service. A fresh SQLite database is created at <code>data/verivend.db</code> on first start, and the nine scenarios are generated if they are missing.</p>
+        <p class="sub">No API key and no external service. A fresh SQLite database is created at <code>data/kyvo.db</code> on first start, and the bundled scenarios are generated if they are missing. Install Tesseract to read photos and scans; without it they are routed to a reviewer.</p>
         <ul class="chips" aria-label="Built with">
-          <li>Python</li><li>Streamlit</li><li>pdfplumber</li><li>pandas</li><li>reportlab</li><li>SQLite</li><li>pytest</li><li>GitHub Actions CI</li>
+          <li>Python</li><li>Streamlit</li><li>pdfplumber</li><li>python-docx</li><li>Tesseract OCR</li><li>pandas</li><li>reportlab</li><li>SQLite</li><li>pytest</li><li>GitHub Actions CI</li>
         </ul>
       </div>
       <div>
 <pre tabindex="0" aria-label="Commands for Windows PowerShell"><code><span class="c"># Windows PowerShell</span>
-git clone https://github.com/Ashrith-work/verivend
-cd verivend
+git clone https://github.com/Ashrith-work/kyvo
+cd kyvo
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 streamlit run app.py      <span class="c"># opens http://localhost:8501</span>
-python -m pytest -q       <span class="c"># 24 tests, offline</span></code></pre>
-        <p class="run-notes">On macOS or Linux, use <code>source .venv/bin/activate</code> instead of the activate line. In the app, open New Submission and run a bundled sample scenario. Set <code>VERIVEND_DB</code> or <code>VERIVEND_UPLOADS</code> to change where data is stored.</p>
+python cli.py verify examples\1_happy_path.json  <span class="c"># or run from the command line</span>
+python -m pytest -q       <span class="c"># 69 tests, offline</span></code></pre>
+        <p class="run-notes">On macOS or Linux, use <code>source .venv/bin/activate</code> instead of the activate line. In the app, open New Submission and run a bundled sample scenario. Set <code>KYVO_DB</code> or <code>KYVO_UPLOADS</code> to change where data is stored.</p>
       </div>
     </div>
   </section>
@@ -418,8 +438,8 @@ python -m pytest -q       <span class="c"># 24 tests, offline</span></code></pre
 
 <footer class="site-foot">
   <div class="wrap foot-inner">
-    <p>Independent build for the Zamp PS-2 case study. Not an official IIT Madras or Zamp product. Every vendor, document and identifier shown is fictional.</p>
-    <p>Source and full write-up on <a href="https://github.com/Ashrith-work/verivend">GitHub</a></p>
+    <p>Independent build for the Zamp PS-2 case study, modelled on a university vendor registration portal. Not an official product of any institution or of Zamp. Every vendor, document and identifier shown is fictional.</p>
+    <p>Source and full write-up on <a href="https://github.com/Ashrith-work/kyvo">GitHub</a></p>
   </div>
 </footer>
 </body>

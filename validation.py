@@ -45,13 +45,24 @@ def identifiers(form: dict) -> list:
         ids.append(("TAX_ID", f"{form.get('country')}:{norm_id(form.get('tax_id'))}"))
     return [(t, v) for t, v in ids if v]
 
+def bank_identifiers(form: dict) -> list:
+    """The bank account identity (IFSC-or-SWIFT + account number). Kept SEPARATE from identifiers() so a shared bank
+    account is handled by its own rule (XR_BANK_SHARED) and never shows up as a generic duplicate identifier."""
+    code = norm_id(form.get("ifsc") or form.get("swift"))
+    acct = norm_id(form.get("account_number"))
+    if acct:
+        return [("BANK_ACCT", f"{code}:{acct}")]
+    return []
+
 FIELD_LABELS = {"legal_name": "legal name", "contact_person": "contact person", "email": "organisation email",
                 "phone": "phone number", "address": "address", "entity_type": "entity type", "pan": "PAN",
                 "gstin": "GSTIN", "bank_holder": "bank account holder name", "account_number": "bank account number",
                 "bank_name": "bank name", "ifsc": "IFSC code", "service_category": "service category",
                 "service_description": "products/services description", "country": "country",
                 "reg_number": "business registration number", "tax_id": "tax identification number",
-                "bank_country": "bank country"}
+                "bank_country": "bank country", "state": "state", "city": "city", "pincode": "PIN code",
+                "proprietor_name": "proprietor name", "trc_number": "TRC number",
+                "contact_email": "contact email", "alt_phone": "alternate phone", "contact_mobile": "contact mobile"}
 
 def usable_fields(doc):
     """Fields of a document that may be used for reconciliation (not from wrong/unreadable documents)."""
@@ -71,7 +82,10 @@ def validate_form(form: dict, docs: dict) -> list:
     # required fields (conditional on region / type)
     req = ["legal_name", "contact_person", "email", "phone", "address", "entity_type", "bank_holder",
            "account_number", "bank_name", "service_category", "service_description"]
-    req += ["country", "reg_number", "tax_id", "bank_country"] if intl else ["pan", "ifsc"] + (["gstin"] if with_gst else [])
+    req += (["country", "reg_number", "tax_id", "bank_country", "trc_number"] if intl
+            else ["pan", "ifsc", "state", "city", "pincode"] + (["gstin"] if with_gst else []))
+    if form.get("entity_type") == "Proprietorship":
+        req.append("proprietor_name")
     missing = [k for k in req if not v(k)]
     for k in missing:
         out.append(R("validation", f"REQ_{k.upper()}", f"Required field: {FIELD_LABELS[k]}", "FAIL", "MEDIUM",
@@ -124,13 +138,18 @@ def validate_form(form: dict, docs: dict) -> list:
             continue
         cs = d["classification_state"]
         ev = f"file '{d['filename']}'; detected {DOC_LABELS.get(d['detected_type'], d['detected_type'])}; keywords: {d.get('classification_evidence')}"
-        if d["extraction_state"] in ("UNREADABLE_SCAN", "UNSUPPORTED_IMAGE", "ERROR", "REJECTED_UPLOAD"):
+        if d["extraction_state"] in ("UNREADABLE_SCAN", "UNREADABLE_IMAGE", "UNSUPPORTED_IMAGE", "UNREADABLE_DOC", "ERROR", "REJECTED_UPLOAD"):
             out.append(R("validation", f"DOC_{dtype}", f"Document readable: {label}", "WARN", "MEDIUM", f"doc:{d['filename']}",
                          f"state={d['extraction_state']}; {d.get('note') or ''}",
-                         "No machine-readable text could be extracted, so the document cannot be verified automatically.",
-                         f"The file '{d['filename']}' could not be read automatically. Please upload a clear, searchable (text-based) PDF of your {label}.",
+                         "No reliable text could be read from this file, so it cannot be verified automatically.",
+                         f"The file '{d['filename']}' could not be read reliably. Please upload a sharper photo or a clear, searchable (text-based) PDF of your {label}.",
                          "UNREADABLE_DOCUMENT", provenance="system-derived"))
-        elif cs == "MATCH":
+            continue
+        if d["extraction_state"] == "OCR":
+            out.append(R("validation", f"OCR_{dtype}", f"Read by OCR: {label}", "PASS", "LOW", f"doc:{d['filename']}",
+                         d.get("note") or "read by OCR", "Photo or scan read by OCR. Each value it supplies carries its own confidence.",
+                         "", None, blocking=False, provenance="system-derived"))
+        if cs == "MATCH":
             out.append(R("validation", f"DOC_{dtype}", f"Document type: {label}", "PASS", source=f"doc:{d['filename']}", evidence=ev, provenance="extracted"))
         elif cs == "MISMATCH":
             out.append(R("validation", f"DOC_{dtype}", f"Document type: {label}", "FAIL", "HIGH", f"doc:{d['filename']}", ev,
@@ -196,6 +215,30 @@ def _india_rules(form, v, with_gst):
         ok = acct.isdigit() and 9 <= len(acct) <= 18
         out.append(R("validation", "FMT_ACCT_IN", "Indian bank account number (9-18 digits)", "PASS" if ok else "FAIL", "MEDIUM", "form", acct,
                      "Plausibility only - ownership is not verified.", "The bank account number looks invalid. Please re-check it.", "INVALID_FORMAT"))
+    pin = re.sub(r"\s", "", v("pincode") or "")
+    if pin:
+        ok = bool(re.fullmatch(r"\d{6}", pin))
+        out.append(R("validation", "FMT_PINCODE", "PIN code format (6 digits)", "PASS" if ok else "FAIL", "LOW", "form", pin,
+                     "Indian PIN code is 6 digits.", "The PIN code should be 6 digits. Please correct it.", "INVALID_FORMAT"))
+    state = (v("state") or "").strip()
+    # Part B: GSTIN state code (first 2 digits) vs the billing state. Blocking WARN, never a rejection.
+    if with_gst and gstin and GSTIN_RE.match(gstin) and state:
+        expected = GST_STATE_CODE.get(gstin[:2])
+        ok = bool(expected) and expected.lower() == state.lower()
+        out.append(R("validation", "XB_GSTIN_STATE", "GSTIN state code matches billing state", "PASS" if ok else "WARN",
+                     "MEDIUM", "form", f"GSTIN state code {gstin[:2]} = {expected or 'unknown'}; billing state '{state}'",
+                     "The first two digits of a GSTIN encode the state of registration.",
+                     f"Your GSTIN is registered in {expected or 'another state'} but your billing state is '{state}'. "
+                     f"Please provide the GSTIN registered in {state}, or confirm you hold GST in more than one state.",
+                     "GSTIN_STATE_MISMATCH"))
+    # Part B: PIN code first digit (postal zone) vs state. Blocking WARN.
+    if pin and re.fullmatch(r"\d{6}", pin) and state:
+        ok = state.lower() in PIN_ZONE.get(pin[0], set())
+        out.append(R("validation", "XB_PINCODE_STATE", "PIN code zone matches state", "PASS" if ok else "WARN",
+                     "MEDIUM", "form", f"PIN {pin} (zone {pin[0]}); state '{state}'",
+                     "The first digit of an Indian PIN code maps to a postal zone of states.",
+                     f"The PIN code {pin} is not in the postal zone for '{state}'. Please check the PIN code and the state.",
+                     "PINCODE_STATE_MISMATCH"))
     cin = norm_id(v("reg_number"))
     if cin and form.get("entity_type") in ("Private Limited Company", "Public Limited Company"):
         ok = bool(CIN_RE.match(cin))
@@ -226,6 +269,11 @@ def _international_rules(form, v):
                          tid, f"No automated identifier rule is configured for {country}; it was NOT validated and is routed to manual review.",
                          f"We cannot automatically verify tax identifiers for {country}; our team will review '{tid}' manually. No action needed unless we contact you.",
                          "UNSUPPORTED_COUNTRY_RULE"))
+    trc = (v("trc_number") or "").strip()
+    if trc:
+        out.append(R("validation", "VAL_TRC_NUMBER", "TRC number recorded", "PASS", "LOW", "form", trc,
+                     "Tax Residency Certificate number captured. Syntax varies by country and is not verified against an authority.",
+                     "", None, blocking=False))
     acct = norm_id(v("account_number"))
     if acct:
         ok = bool(re.fullmatch(r"[A-Z0-9]{6,34}", acct))
@@ -246,10 +294,42 @@ def _international_rules(form, v):
 def reconcile(form: dict, docs: dict) -> list:
     out, intl = [], form.get("region") == "International"
     legal = form.get("legal_name", "")
+    # E1: a sole proprietor's PAN, GST legal name and bank account are in the PERSON's name, while the firm/trade
+    # name sits on the GST trade-name line. When ownership is Proprietorship and the PAN 4th character is 'P',
+    # compare the proprietor name (not the firm name) with the PAN card, GST legal name and bank holder.
+    pan4 = norm_id(form.get("pan"))[3:4]
+    prop = (not intl) and form.get("entity_type") == "Proprietorship" and pan4 == "P"
+    identity_name = (form.get("proprietor_name") or "") if prop else legal
+    who = "proprietor name" if prop else "legal name"
 
     def fld(dtype, field):
         f = usable_fields(docs.get(dtype))
         return (f or {}).get(field)
+
+    def ocr_conf(f):
+        """Confidence of an OCR-read value, or None when the value did not come from OCR."""
+        if f.get("provenance") in ("extracted", "vendor_resubmitted") and str(f.get("method") or "").startswith("ocr"):
+            return float(f.get("confidence") or 0)
+        return None
+
+    def low_ocr(f):
+        c = ocr_conf(f)
+        return c is not None and c < OCR_MIN_FIELD_CONF
+
+    def prov(f):
+        c = ocr_conf(f)
+        return f["provenance"] if c is None else f"{f['provenance']} by OCR, confidence {c:.2f}"
+
+    def accepted_note(f):
+        return (f"; read by OCR at {ocr_conf(f):.2f}, below {OCR_MIN_FIELD_CONF:.2f}, accepted only because it equals the entered value exactly"
+                if low_ocr(f) else "")
+
+    def low_ocr_warn(rule_id, label, dtype, f, src, ev, what):
+        out.append(R("reconciliation", rule_id, label, "WARN", "MEDIUM", src,
+                     ev + f"; OCR confidence {ocr_conf(f):.2f} is below {OCR_MIN_FIELD_CONF:.2f}",
+                     "The value was read by OCR with low confidence and does not match exactly, so it could be a misread. A reviewer must check the document.",
+                     f"We couldn't read the {what} on your {DOC_LABELS[dtype]} clearly. Please upload a sharper photo or a text-based PDF.",
+                     "LOW_CONFIDENCE_OCR", provenance=f["provenance"]))
 
     def skip(rule_id, label, dtype):
         d = docs.get(dtype)
@@ -268,8 +348,12 @@ def reconcile(form: dict, docs: dict) -> list:
                 skip(rule_id, label, dtype)
             return
         state, score = compare_names(a, f["value"])
-        src = f"{DOC_LABELS[dtype]} p{f['page'] or '-'}: \"{f['evidence']}\" ({f['provenance']})"
+        src = f"{DOC_LABELS[dtype]} p{f['page'] or '-'}: \"{f['evidence']}\" ({prov(f)})"
         ev = f"{a_label}: '{a}' vs document: '{f['value']}' (similarity {score})"
+        if low_ocr(f) and state != "EXACT":
+            low_ocr_warn(rule_id, label, dtype, f, src, ev, "name")
+            return
+        ev += accepted_note(f)
         if state == "EXACT":
             out.append(R("reconciliation", rule_id, label, "PASS", source=src, evidence=ev, provenance=f["provenance"]))
         elif state == "SIMILAR":
@@ -296,52 +380,66 @@ def reconcile(form: dict, docs: dict) -> list:
                 skip(rule_id, label, dtype)
             return
         same = normalise(a) == normalise(f["value"])
-        out.append(R("reconciliation", rule_id, label, "PASS" if same else "FAIL", "HIGH",
-                     f"{DOC_LABELS[dtype]} p{f['page'] or '-'}: \"{f['evidence']}\" ({f['provenance']})",
-                     f"{a_label}: '{a}' vs document: '{f['value']}'", "Identifiers must match exactly after removing spaces.",
+        src = f"{DOC_LABELS[dtype]} p{f['page'] or '-'}: \"{f['evidence']}\" ({prov(f)})"
+        if low_ocr(f) and not same:
+            low_ocr_warn(rule_id, label, dtype, f, src, f"{a_label}: '{a}' vs document: '{f['value']}'", field.replace("_", " "))
+            return
+        out.append(R("reconciliation", rule_id, label, "PASS" if same else "FAIL", "HIGH", src,
+                     f"{a_label}: '{a}' vs document: '{f['value']}'" + accepted_note(f), "Identifiers must match exactly after removing spaces.",
                      f"The {field.replace('_', ' ')} on your {DOC_LABELS[dtype]} ('{f['value']}') differs from the one entered ('{a}'). Please correct whichever is wrong.",
                      "ID_INCONSISTENT", provenance=f["provenance"]))
 
     if not intl:
         ids("XD_PAN_DOC", "PAN: form vs PAN proof", "form", form.get("pan"), "PAN_PROOF", "pan")
-        names("XN_LEGAL_PAN", "Legal name: form vs PAN proof", "PAN_PROOF", "name")
+        names("XN_LEGAL_PAN", f"{who.capitalize()}: form vs PAN proof", "PAN_PROOF", "name",
+              a_label=f"{who} on form", a=identity_name)
         if form.get("domestic_type") == "PAN with GST":
             ids("XD_GSTIN_DOC", "GSTIN: form vs GST certificate", "form", form.get("gstin"), "GST_CERT", "gstin")
             ids("XD_PAN_GST", "PAN: form vs PAN printed on GST certificate", "form", form.get("pan"), "GST_CERT", "pan")
-            names("XN_LEGAL_GST", "Legal name: form vs GST certificate", "GST_CERT", "name")
+            names("XN_LEGAL_GST", f"{who.capitalize()}: form vs GST legal name", "GST_CERT", "name",
+                  a_label=f"{who} on form", a=identity_name)
+            if prop:
+                names("XN_TRADE_GST", "Firm / trade name: form vs GST trade name", "GST_CERT", "trade_name",
+                      a_label="firm name on form", a=legal)
         names("XN_LEGAL_REG", "Legal name: form vs company registration", "COMPANY_REG", "name")
         ids("XR_REGNO", "Registration no.: form vs company registration", "form", form.get("reg_number"), "COMPANY_REG", "reg_number")
         ids("XB_IFSC", "IFSC: form vs bank proof", "form", form.get("ifsc"), "BANK_PROOF", "ifsc")
     else:
         names("XN_LEGAL_REG", "Legal name: form vs company registration", "COMPANY_REG", "name")
         names("XN_LEGAL_TAX", "Legal name: form vs tax certificate", "TAX_CERT", "name")
-        if form.get("trc_applicable"):
-            names("XN_LEGAL_TRC", "Legal name: form vs TRC", "TRC", "name")
+        names("XN_LEGAL_TRC", "Legal name: form vs TRC", "TRC", "name")   # TRC is mandatory for every International vendor
         ids("XD_TAXID_DOC", "Tax ID: form vs tax certificate", "form", form.get("tax_id"), "TAX_CERT", "tax_id")
         ids("XR_REGNO", "Registration no.: form vs company registration", "form", form.get("reg_number"), "COMPANY_REG", "reg_number")
 
-    # bank: entered holder vs legal name, vs bank proof; bank proof holder vs legal name
+    # bank: entered holder vs identity name (proprietor name for E1, else legal name), and bank proof holder vs identity name
     holder = form.get("bank_holder", "")
     if holder:
-        st, sc = compare_names(legal, holder)
-        ev = f"legal name '{legal}' vs bank account holder '{holder}' (similarity {sc})"
+        st, sc = compare_names(identity_name, holder)
+        ev = f"{who} '{identity_name}' vs bank account holder '{holder}' (similarity {sc})"
+        label = f"Bank holder matches {who}"
         if st == "EXACT":
-            out.append(R("reconciliation", "XB_HOLDER_LEGAL", "Bank holder matches legal name", "PASS", source="form (vendor-entered)", evidence=ev))
+            if prop:
+                ev += " - the account is in the proprietor's own name and matches the PAN card"
+            out.append(R("reconciliation", "XB_HOLDER_LEGAL", label, "PASS", source="form (vendor-entered)", evidence=ev))
         else:
             sev, status = ("LOW", "WARN") if st == "SIMILAR" else ("HIGH", "FAIL")
-            out.append(R("reconciliation", "XB_HOLDER_LEGAL", "Bank holder matches legal name", status, sev, "form (vendor-entered)", ev,
-                         "Bank account holder differs from the legal company name" + (" slightly." if st == "SIMILAR" else " materially. Possible third-party account; reviewer must confirm - not a fraud finding."),
-                         f"The bank account holder ('{holder}') does not match your registered legal name ('{legal}'). Please provide a bank account held in the company's legal name, or a bank letter explaining the difference.",
+            out.append(R("reconciliation", "XB_HOLDER_LEGAL", label, status, sev, "form (vendor-entered)", ev,
+                         f"Bank account holder differs from the {who}" + (" slightly." if st == "SIMILAR" else " materially. Possible third-party account; reviewer must confirm - not a fraud finding."),
+                         f"The bank account holder ('{holder}') does not match the {who} ('{identity_name}'). Please provide a bank account held in that name, or a bank letter explaining the difference.",
                          "BANK_HOLDER_MISMATCH"))
     f = fld("BANK_PROOF", "account_holder")
     if f:
         for rid, lab, a_lab, a in (("XB_HOLDER_DOC", "Bank holder: form vs bank proof", "form holder", holder),
-                                   ("XB_DOCHOLDER_LEGAL", "Bank proof holder matches legal name", "legal name", legal)):
+                                   ("XB_DOCHOLDER_LEGAL", f"Bank proof holder matches {who}", who, identity_name)):
             if not a:
                 continue
             st, sc = compare_names(a, f["value"])
-            src = f"Bank proof p{f['page'] or '-'}: \"{f['evidence']}\" ({f['provenance']})"
+            src = f"Bank proof p{f['page'] or '-'}: \"{f['evidence']}\" ({prov(f)})"
             ev = f"{a_lab}: '{a}' vs bank proof: '{f['value']}' (similarity {sc})"
+            if low_ocr(f) and st != "EXACT":
+                low_ocr_warn(rid, lab, "BANK_PROOF", f, src, ev, "account holder name")
+                continue
+            ev += accepted_note(f)
             if st == "EXACT":
                 out.append(R("reconciliation", rid, lab, "PASS", source=src, evidence=ev, provenance=f["provenance"]))
             else:
@@ -352,11 +450,44 @@ def reconcile(form: dict, docs: dict) -> list:
     else:
         skip("XB_HOLDER_DOC", "Bank holder: form vs bank proof", "BANK_PROOF")
     ids("XB_ACCT", "Account no.: form vs bank proof", "form", form.get("account_number"), "BANK_PROOF", "account_number")
+
+    # Part B: IFSC bank code (first 4 letters) vs bank name on the form and on the bank proof.
+    if not intl:
+        ifsc = norm_id(form.get("ifsc"))
+        if ifsc and IFSC_RE.match(ifsc):
+            code = ifsc[:4]
+            expected = IFSC_BANK.get(code)
+            if not expected:
+                out.append(R("reconciliation", "XB_IFSC_BANK", "IFSC bank code vs bank name", "NOT_CHECKED", "LOW", "form",
+                             f"IFSC bank code '{code}' is not in the known-bank table", "Bank code is not in our small lookup table, so it was not checked.",
+                             "", None, blocking=False, provenance="system-derived"))
+            else:
+                proof = fld("BANK_PROOF", "bank_name")
+                mismatches = []
+                if form.get("bank_name") and compare_names(expected, form["bank_name"])[0] == "DIFFERENT":
+                    mismatches.append(f"form bank '{form['bank_name']}'")
+                if proof and compare_names(expected, proof["value"])[0] == "DIFFERENT":
+                    mismatches.append(f"bank proof '{proof['value']}'")
+                if mismatches:
+                    out.append(R("reconciliation", "XB_IFSC_BANK", "IFSC bank code matches bank name", "WARN", "MEDIUM", "form",
+                                 f"IFSC '{ifsc}' (code {code} = {expected}); " + ", ".join(mismatches),
+                                 "The first four letters of an IFSC identify the bank.",
+                                 f"Your IFSC ({ifsc}) belongs to {expected}, which does not match the bank name provided. Please check the IFSC and the bank name.",
+                                 "IFSC_BANK_MISMATCH", provenance="system-derived"))
+                else:
+                    out.append(R("reconciliation", "XB_IFSC_BANK", "IFSC bank code matches bank name", "PASS", source="form",
+                                 evidence=f"IFSC code {code} = {expected}; bank name agrees", provenance="system-derived"))
     return out
 
 # ---- stage 3: risk checks (duplicates, policy blocklist) ---------------------------
-def risk_checks(form: dict, dups: list, blocked: list) -> list:
+def risk_checks(form: dict, dups: list, blocked: list, shared: list = None) -> list:
     out = []
+    for sh in (shared or []):
+        out.append(R("risk", "XR_BANK_SHARED", "Bank account already registered to another vendor", "WARN", "HIGH", "local database",
+                     f"account {sh['id_value']} already on {sh['ref']} ({sh['legal_name']}, status {sh['prior_status']})",
+                     "The same bank account (IFSC/SWIFT + account number) is registered to a different vendor. A reviewer must confirm this is intended.",
+                     f"The bank account provided is already registered to another vendor (reference {sh['ref']}). Please confirm this is correct, or provide the vendor's own account.",
+                     "BANK_SHARED", provenance="system-derived"))
     if dups:
         for d in dups:
             out.append(R("risk", f"DUP_{d['id_type']}", f"Duplicate identifier: {d['id_type']}", "WARN", "HIGH", "local database",
@@ -372,6 +503,16 @@ def risk_checks(form: dict, dups: list, blocked: list) -> list:
                      f"{b['id_value']} - {b['reason']} (added by {b['added_by']})",
                      "Identifier appears on the organisation's written blocklist (policy disqualification).",
                      "Your registration cannot proceed under our vendor policy.", "POLICY_BLOCKLIST", provenance="system-derived"))
+    # Part B: a free (personal) email domain for a company or LLP is a soft, non-blocking note.
+    email = (form.get("email") or "").strip().lower()
+    if "@" in email and form.get("entity_type") in COMPANY_ENTITY_TYPES:
+        domain = email.rsplit("@", 1)[1]
+        base = domain.split(".")[0]
+        if base in FREE_EMAIL_DOMAINS:
+            out.append(R("risk", "FREE_EMAIL_DOMAIN", "Free email domain for a company/LLP", "WARN", "LOW", "form",
+                         f"'{email}' uses the free email domain '{domain}'",
+                         "A registered company or LLP using a personal/free email domain is worth noting, but is not a blocking issue.",
+                         "", None, blocking=False, provenance="system-derived"))
     out.append(R("risk", "SCOPE_EXTERNAL", "Government / sanctions / bank-ownership verification", "NOT_CHECKED", "LOW", "scope",
                  "no external API configured", "Format and consistency checks only; official registries are not queried in this build.",
                  "", None, blocking=False, provenance="system-derived"))
