@@ -211,14 +211,14 @@
         <h1>Vendor onboarding decisions you can trace back to the evidence</h1>
         <p class="lede">Kyvo reads a vendor's form and PDF documents, checks them against written rules, and returns APPROVED, PENDING or REJECTED. Every decision comes with the evidence behind each check, a full audit trail and an editable follow-up email draft.</p>
         <div class="actions">
-          <a class="btn btn-primary" href="https://github.com/Ashrith-work/kyvo">Read the code on GitHub</a>
-          <a class="btn btn-secondary" href="#run">Run it locally</a>
+          <a class="btn btn-primary" href="https://kyvo-onboarding.vercel.app">See the live report</a>
+          <a class="btn btn-secondary" href="https://github.com/Ashrith-work/kyvo">Read the code on GitHub</a>
         </div>
         <ul class="facts">
           <li>Deterministic Python rules</li>
           <li>No LLM and no API key</li>
-          <li>69 offline tests</li>
-          <li>Vendor portal and admin review</li>
+          <li>95 offline tests</li>
+          <li>Headless inbox, replies, escalation</li>
         </ul>
       </div>
       <figure class="shot">
@@ -373,7 +373,7 @@
           </tbody>
         </table>
       </div>
-      <p class="note-line">The suite has 69 tests in all (2 OCR tests skip without Tesseract), covering the policy, the submission and decision contracts, the subtle cross-checks, the follow-up loop, the vendor portal and the four edge cases.</p>
+      <p class="note-line">The suite has 95 tests in all (2 OCR tests skip without Tesseract), covering the policy and its lock, the submission and decision contracts, assurance and the two-source rule, the inbound protocol and idempotency, the follow-up loop with reminders and stale, the measurement suite with zero unsafe errors, and the four edge cases. The live automation report is at <a href="https://kyvo-onboarding.vercel.app">kyvo-onboarding.vercel.app</a>.</p>
 
       <h3 style="margin-top:clamp(36px,5vw,56px)">Four designed edge cases</h3>
       <div class="table-wrap" style="margin-top:18px">

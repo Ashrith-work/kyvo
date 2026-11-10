@@ -1,0 +1,35 @@
+name: demo
+
+# Runs the automation end to end on every push and once a day: the test suite, the scripted demo,
+# the evaluation, and a rebuild of the published report site into public/. The static site is hosted on
+# Vercel, which deploys public/ automatically on push; this workflow verifies the pipeline and keeps the
+# generated artefacts available for download. To host on GitHub Pages instead, set the Pages source to
+# "GitHub Actions" and add a deploy-pages step that publishes docs/ plus public/ under /run/.
+
+on:
+  push:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Tesseract (for OCR scenarios)
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Test suite
+        run: python -m pytest -q
+      - name: Build the demo report site
+        run: python build_site.py
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kyvo-report-site
+          path: public/

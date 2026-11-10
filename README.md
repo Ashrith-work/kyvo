@@ -1,146 +1,230 @@
-# Kyvo — vendor onboarding automation (Zamp PS-2 case study)
+# Kyvo
 
 [![CI](https://github.com/Ashrith-work/kyvo/actions/workflows/ci.yml/badge.svg)](https://github.com/Ashrith-work/kyvo/actions/workflows/ci.yml)
 
-**Website: [ashrith-work.github.io/kyvo](https://ashrith-work.github.io/kyvo/)** — project overview, pipeline, decision policy and demo scenarios.
+**Headless vendor onboarding automation for the Zamp PS-2 case study.**
+Live report site: **https://kyvo-onboarding.vercel.app**
 
-[![Kyvo website](docs/screenshot.png)](https://ashrith-work.github.io/kyvo/)
+Kyvo is not an app. Vendor submissions arrive in an inbox, get verified, and the automation replies to
+the vendor, waits, chases, re-verifies and escalates on its own. A person only steps in for judgement
+calls. Everything it does is recorded, measured and published as a static report site.
 
-Independent build for the Zamp PS-2 case study. It is modelled on a university vendor registration portal; the institution's name, branding and helpdesk are not used, and all data is fictional. Kyvo takes a vendor submission (form plus documents) and returns **APPROVED / PENDING / REJECTED** with visible reasoning, evidence, a vendor-facing request list and an audit trail. Deterministic Python rules decide; no LLM and no API key are needed.
-
-## Run (Windows PowerShell)
-```powershell
-cd kyvo
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python sample_data\generate.py        # regenerates the fictional scenarios + examples (also auto-built on first start)
-streamlit run app.py                  # opens http://localhost:8501
-python -m pytest -q                   # 69 tests, offline (2 OCR tests skip if Tesseract is missing)
-```
-macOS/Linux: use `source .venv/bin/activate` instead of the Activate line. A fresh SQLite database is created at `data/kyvo.db` on first start (sidebar → *Demo database* → reset). Environment overrides: `KYVO_DB`, `KYVO_UPLOADS`.
-
-### Command line
-```powershell
-python cli.py verify examples\1_happy_path.json      # prints the decision JSON; exit 0 APPROVED, 1 PENDING, 2 REJECTED
-python cli.py verify examples\E3_shared_bank.json --db data\kyvo.db   # --db shares state so duplicate / shared-bank checks see prior vendors
-```
-Each file in `examples/` is one submission per scenario, with document paths relative to the file.
-
-### Demo controls
-The sidebar has a demo **mode switch** (no real authentication):
-* **Vendor portal** — sign-up (issues a Vendor ID `V#####`), login with a simulated OTP shown in an on-screen demo inbox, four-step registration, a dashboard, change requests and payment status.
-* **Admin review** — the verification pages: Overview, New Submission, Live Run, Verification Detail, Review Queue, Change requests, Reminders, History.
-
-## How it works
-`workflow.run_workflow` is the single verification path used by the UI, the bundled scenarios, the CLI, vendor responses and change requests. It runs ten stages: Submission received → Document intake → Classification → Field extraction → Validation → Cross-document reconciliation → Risk assessment → Decision → Email draft → Audit persistence. The Live Run page renders each stage as it happens.
-
-| File | Role |
-|---|---|
-| `app.py` | Streamlit UI: vendor portal and admin review |
-| `portal.py` | Sign-up, simulated OTP, four-step registration, change requests, payments |
-| `workflow.py` | Stage orchestration, re-run, vendor responses, reminders, reviewer actions |
-| `extraction.py` | pdfplumber / python-docx text, OCR for photos and scans, keyword classifier, regex field extraction |
-| `validation.py` | Conditional fields, India rules, country registry, cross-document reconciliation, subtle cross-checks, duplicates, shared bank, blocklist |
-| `decision_engine.py` | Deterministic three-status policy (`KYVO-POLICY-1.1`), `waiting_on` and the decision record |
-| `communication.py` | Email and reminder drafts (`sent=0`, never auto-sent) |
-| `database.py` / `config.py` | SQLite schema, migrations and audit; policy, patterns, country and cross-check tables |
-| `schemas/` | `submission.schema.json`, `decision.schema.json` |
-| `sample_data/`, `examples/`, `tests/` | Generator + scenarios; example submissions; unit and end-to-end tests |
-
-## Decision policy
-* **APPROVED** — only if every blocking check is PASS (all applicable fields and documents, types match, formats pass, cross-checks agree, no duplicate, no shared account).
-* **PENDING** — any FAIL/WARN/NOT_CHECKED that blocks approval (missing/wrong/unreadable document, unsupported country, invalid format, name or bank mismatch, duplicate, shared account, uncertain extraction, subtle cross-check mismatch, bank change).
-* **REJECTED** — only a hit on the written `policy_blocklist` (empty by default) or a reviewer's confirmed rejection with a mandatory comment. A fuzzy name difference never rejects; a low-confidence OCR value counts only on an exact match.
-
-`waiting_on` is **VENDOR** when every blocking item has an open request, **REVIEWER** when any needs human judgement (similar names, duplicates, shared bank account, bank change, blocklist; REJECTED also routes to a reviewer), and **NONE** when approved.
+It is modelled on a university vendor registration portal; the institution's name, branding, colours and
+helpdesk are not used, and all data is fictional. Deterministic Python rules decide. No LLM and no API
+key are required.
 
 ---
 
-# Design decisions
+## What it does
 
-## Submission shape
-The submission follows the portal manual and is defined in `schemas/submission.schema.json`. Sign-up chooses a region (Domestic or International). Domestic collects a vendor type (PAN with GST / PAN without GST), PAN, GSTIN (only for PAN with GST) and email; International collects a business registration number, a TRC number and email. Registration then has four steps: organisation (firm name, ownership, proprietor name when the ownership is Proprietorship, address, state, city, PIN code, contact details), bank (holder, account number, IFSC or SWIFT, bank name, and a cancelled cheque or bank letter), services (category and description), and documents (PAN card, GST certificate, company registration, and for International the tax registration certificate and the TRC) plus terms. The manual's field names are mapped onto Kyvo's internal keys (for example firm name to `legal_name`, ownership to `entity_type`, company phone to `phone`), and the older keys keep working.
+A submission (a form plus PDF, JPG, PNG, DOC or DOCX documents, up to 1 MB each) is read, validated,
+reconciled across documents, risk-checked, and turned into one of three statuses:
 
-## Rules
-| Rule id | What it checks | On a problem |
-|---|---|---|
-| `REQ_*` | Required fields for the region and type | FAIL, blocking |
-| `FMT_PAN` / `FMT_GSTIN` / `FMT_IFSC` / `FMT_PINCODE` / `FMT_SWIFT` | Identifier and PIN formats (syntax only) | FAIL, blocking |
-| `FMT_GSTIN_CHECK` | GSTIN check character | WARN, blocking |
-| `XF_GSTIN_PAN` | PAN embedded in GSTIN vs entered PAN | FAIL, blocking |
-| `VAL_TAXID_COUNTRY` | Foreign tax ID scheme vs claimed country | FAIL or NOT_CHECKED |
-| `DOC_*` | Required document present, correct type, readable | FAIL/WARN, blocking |
-| `XN_*` / `XD_*` | Names and identifiers: form vs each document | PASS/WARN/FAIL |
-| `XB_HOLDER_*` | Bank holder vs legal (or proprietor) name | WARN/FAIL |
-| `XB_GSTIN_STATE` | GSTIN state code vs billing state | WARN, blocking |
-| `XB_PINCODE_STATE` | PIN code postal zone vs state | WARN, blocking |
-| `XB_IFSC_BANK` | IFSC bank code vs bank name (form and proof) | WARN, blocking; unknown code NOT_CHECKED |
-| `FREE_EMAIL_DOMAIN` | Free email domain for a company or LLP | LOW, non-blocking note |
-| `DUP_*` | Duplicate PAN/GSTIN/registration/tax ID | WARN, blocking |
-| `XR_BANK_SHARED` | Bank account registered to another vendor | WARN, blocking, reviewer |
-| `XR_BANK_CHANGE` | A bank-account change after approval | WARN, blocking, reviewer |
-| `BLOCK_*` | Identifier or account on the policy blocklist | FAIL, REJECTED |
-| `LOW_CONFIDENCE_OCR` | OCR value read below the confidence gate and not an exact match | WARN, blocking |
+- **APPROVED** when every blocking check passes and the two-source rule is met.
+- **PENDING** when anything is missing or uncertain, with the evidence and a request to the vendor or a
+  reviewer.
+- **REJECTED** only on a written policy blocklist hit, or a reviewer's rejection with a written reason.
 
-## Output contract
-Every run produces a decision matching `schemas/decision.schema.json`: `submission_id`, `vendor_id`, `status`, `waiting_on`, `risk_level`, `policy_version`, `run_no`, `decided_at`, `reasons[]` (each with `rule_id`, `label`, `status`, `severity`, `evidence`, `source`, `provenance`), `requests_to_vendor[]` (each with `id`, `about`, `ask`, `status`), and `next_action`. The CLI prints this JSON, and the Verification Detail page has a *Download decision JSON* button.
+Three rules never change: a fuzzy name difference never rejects; a low-confidence OCR value counts only
+on an exact match with what the vendor typed; APPROVED requires two independent sources to agree on the
+key identities.
 
-## Follow-up loop
-Every blocking result that carries a vendor-facing message opens a row in `follow_up_requests`. The email draft lists only the open items. A vendor reply (`workflow.vendor_response`) stores the corrected values, re-runs the full workflow at the next run number, resolves requests whose rule now passes and opens any new ones. `reminders_due` drafts a reminder on day 3 and day 7 after the oldest open request, and after day 14 marks the submission stale and recommends closing it as rejected (incomplete); closing still needs a reviewer and a comment. History is append-only.
+The verification engine (`workflow.run_workflow`) runs intake, classification, extraction (pdfplumber
+plus Tesseract OCR with per-line confidence, python-docx for Word), validation, cross-document
+reconciliation, risk, decision, an editable email draft and an append-only SQLite audit trail. Every
+inbound type goes through this one path.
 
-## Edge cases
+---
 
-**E1 — sole proprietor paid into the owner's personal account.** *Situation:* the firm is a trade name, the proprietor's PAN has a 4th character of P, the GST certificate shows the proprietor as the legal name and the firm as the trade name, and the bank account is in the proprietor's name. *Why naive automation gets it wrong:* comparing the firm name against the bank holder reads this as a bank-name mismatch and holds a legitimate vendor. *What Kyvo does:* when the ownership is Proprietorship and the PAN 4th character is P, it compares the proprietor name (not the firm name) against the PAN card, the GST legal name and the bank holder, and compares the firm name against the GST trade name. A proprietorship whose bank holder is a third person still goes to PENDING. *Outcome:* APPROVED, with evidence that the account is in the proprietor's own name and matches the PAN card.
+## How it runs
 
-**E2 — bank account change requested after approval.** *Situation:* an approved vendor files a bank-details change with a new account. *Why naive automation gets it wrong:* silently updating the account is the most common payment-fraud route. *What Kyvo does:* payments go on hold as soon as the request is filed; a new bank proof is required; every bank check and the shared-account check re-run; a confirmation draft goes to the previously registered email, not the one in the request; the result is always PENDING with `waiting_on` REVIEWER and is never auto-approved. Old details stay in the audit trail, and the hold lifts only on a reviewer's approval. *Outcome:* PENDING, reviewer.
+```
+python -m venv .venv && .venv\Scripts\activate        # Windows
+pip install -r requirements.txt
 
-**E3 — one bank account, two vendors.** *Situation:* a new vendor with a different PAN uses an IFSC and account number already registered to another vendor. *Why naive automation gets it wrong:* identifier duplicate checks look at PAN/GSTIN, so a shared bank account slips through. *What Kyvo does:* a dedicated rule `XR_BANK_SHARED`, separate from the identifier duplicates, references both vendors and routes to a reviewer. *Outcome:* PENDING, HIGH risk, reviewer. **E3b:** if that account is on the policy blocklist with the reason "rejected for payment fraud", the outcome is REJECTED automatically with that written reason.
+python cli.py demo        # scripted end-to-end demo: timeline, eval, and the report site
+python cli.py run         # process the inbox once
+python cli.py watch --every 60
+python cli.py tick --now 2026-02-16
+python cli.py verify examples/1_happy_path.json       # exit 0 approved, 1 pending, 2 rejected
+python cli.py status SUB-00012
+python cli.py eval        # extraction and decision accuracy, unsafe vs friction, degradation sweep
+python cli.py whatif --set name_similar=0.3
+python cli.py publish     # build the static report site under out/site/
+python -m pytest -q       # the test suite
+```
 
-**E4 — a resubmission that fixes the asked item and breaks another.** *Situation:* a vendor is PENDING for a bank-holder mismatch and replies with a new cancelled cheque in the right name, but the new cheque carries a different IFSC from the form. *Why naive automation gets it wrong:* marking the case resolved because the asked item is fixed misses the new inconsistency. *What Kyvo does:* the holder request resolves, an IFSC request opens, and the status stays PENDING; a second, clean cheque gives APPROVED. The request ledger records all three runs. *Outcome:* PENDING then APPROVED.
+`app.py` (Streamlit) is an optional viewer over the same engine and database, not the product. Install
+`requirements-viewer.txt` for it; the automation needs only `requirements.txt`.
 
-## Baseline checks (scenarios 1 to 11)
-| # | Scenario | Expected |
-|---|---|---|
-| 1 | Domestic PAN+GST, everything consistent | APPROVED |
-| 2 | Invoice uploaded as GST certificate | PENDING (WRONG_DOCUMENT) |
-| 3 | Bank holder differs from legal name | PENDING (BANK_HOLDER_MISMATCH) |
-| 4 | Germany + Indian PAN-format tax ID (with TRC) | PENDING (COUNTRY_TAX_CONFLICT, no India rules applied) |
-| 5 | Duplicate PAN/GSTIN (run after #1) | PENDING (DUPLICATE_IDENTIFIER) |
-| 6 | Domestic PAN without GST (LLP) | APPROVED, no GST document requested |
-| 7 | International, US EIN (with TRC) | APPROVED, no PAN/GST/IFSC required |
-| 8 | Brazil (no rule configured, with TRC) | PENDING (NOT_CHECKED, never a false pass) |
-| 9 | Scanned bank proof too poor to read | PENDING (UNREADABLE_DOCUMENT) |
-| 10 | PAN card and bank proof as phone photos | APPROVED, read by OCR |
-| 11 | Blurred, distant photo of the PAN card | PENDING (UNREADABLE_DOCUMENT) |
+### The inbound protocol
 
-## Edge cases (bundled)
-| id | Scenario | Expected |
-|---|---|---|
-| E1 | Sole proprietor paid into the owner's account | APPROVED |
-| E3 | One bank account, two vendors (run after #1) | PENDING (BANK_SHARED, reviewer) |
-| E3b | Shared account on the policy blocklist | REJECTED (payment fraud) |
-| E4 | Resubmission fixes one item, breaks another | PENDING (run 1), driven to APPROVED |
+Items arrive in `inbox/` as a folder (an `item.json` plus attachments) or a single `.eml` file.
+Processed items move to `processed/`, failures to `failed/` with an error note; a bad item never blocks
+the queue. Every item is hashed, so the same item processed twice never creates a second submission or
+reply. Four types:
 
-E2 is exercised through the vendor portal (file a Bank details change request, approve it as admin, apply the change) and in `tests/test_edge_cases.py`.
+- **NEW_SUBMISSION** — a submission form and documents. Issues a Vendor ID (`V#####`) and sends an
+  acknowledgement quoting it.
+- **VENDOR_REPLY** — subject carries `[Kyvo SUB-00012]`; attachments and `Field: value` lines answer
+  open requests. Applied only if the sender is the registered email, otherwise nothing changes and it
+  escalates as a reply from an unregistered address.
+- **CHANGE_REQUEST** — a Vendor ID, a change type (GST/PAN, bank details, organisation, services), new
+  values, a reason and documents. A bank-details change is handled as E2 (below).
+- **REVIEWER_DECISION** — from a reviewer on the policy allowlist; a subject token plus one command:
+  `APPROVE`, `REJECT: <reason>`, or `REQUEST: <ask>`. Anyone else's commands are ignored and logged, and
+  `REJECT` without a reason is refused.
 
-## Photos and scans (OCR)
-Install Tesseract to read photos and scanned PDFs: `apt-get install tesseract-ocr` (Linux), `brew install tesseract` (macOS), or the UB Mannheim installer on Windows; `packages.txt` installs it on Streamlit Community Cloud. A document read below 0.60 mean confidence is held as unreadable. A value read below 0.80 counts only if it equals the vendor-entered value exactly, otherwise it is a blocking warning (LOW_CONFIDENCE_OCR), never a pass or a fail. PAN, GSTIN and IFSC letter/digit swaps are repaired by position only when the result passes the format check (and the GSTIN checksum). Without Tesseract, photos and scans fall back to manual review.
+Outbound mail defaults to an outbox: every message is written as a `.eml` file and never sent. SMTP
+sending happens only with `KYVO_SEND=1` and the `SMTP_*` environment variables, and never to a demo
+(`.example`) address. An optional IMAP adapter (off by default) reads a real mailbox using
+`IMAP_HOST`/`IMAP_USER`/`IMAP_PASSWORD`.
 
-## Assumptions
-* The product is named Kyvo and the policy label is `KYVO-POLICY-1.1`; this is a label, the decision behaviour is unchanged.
-* Modelled on a university vendor registration portal; the institution's name, branding, colours, helpdesk email and phone numbers are not used. All data is fictional.
-* Forgot Vendor ID looks up a Domestic vendor by registered GSTIN, or by PAN for a "PAN without GST" vendor, and an International vendor by business registration number.
-* The OTP is simulated and shown in an on-screen demo inbox; no email is ever sent and no copy says one was. Sign-up issues the Vendor ID; the OTP is verified at login. The CAPTCHA is a demo checkbox.
-* Uploads accept PDF, JPG, PNG, DOC and DOCX, up to 1 MB each. `.docx` is read with python-docx; `.doc` is treated as unreadable and held for a reviewer.
-* A TRC (number and certificate) is required for every International vendor.
-* The bank account identity is the IFSC or SWIFT code plus the account number; shared-account detection is cross-vendor only, so a vendor resubmitting with the same account is not flagged as sharing.
-* The GitHub and Pages URLs point at `…/kyvo`; rename the repository for the badge and links to resolve.
-* The CLI uses a throwaway database by default. Scenarios that depend on prior or seeded state (5, E3, E3b) need a shared `--db` or the app, which seeds the blocklisted account on start.
+### The decision contract
 
-## Limitations
-* Format and consistency checks only: no verification of GST/PAN registry status, sanctions, legal existence or bank-account ownership.
-* The country registry covers US, UK, DE, SG, AE (plus India for domestic). Any other country is NOT_CHECKED and goes to PENDING.
-* Classification and extraction are keyword and regex based and tuned to the synthetic documents; real-world layouts need more patterns.
-* The duplicate policy is strict by design: any earlier submission with the same identifier blocks auto-approval, including legitimate resubmissions.
-* Email and reminder drafts are never sent. The portal is a single-user demo with no authentication or roles, and payments, change requests and OTP use fictional seeded data. Not production hardened.
+Every run writes `out/<ref>/`:
+
+- `decision.json` (valid against `schemas/decision.schema.json`): `status`, `waiting_on`
+  (VENDOR / REVIEWER / NONE), `risk_level`, `policy_version`, `run_no`, `decided_at`, `payment_hold`,
+  `assurance` (per identifier), `reasons[]`, `requests_to_vendor[]`, `next_action`.
+- `report.md` (the same decision for a person), `emails/` (every outgoing message as `.eml`),
+  `audit.jsonl` (append-only events).
+
+Plus `out/digest-<date>.md` and `out/ledger.csv`, and the published site under `out/site/`.
+
+---
+
+## Assurance levels and the two-source rule
+
+Every check result carries an assurance level:
+
+- **FORMAT** — syntax and checksums, or two fields of the same form agreeing.
+- **CONSISTENCY** — two independent sources agree (form vs document, or document vs document).
+- **NOT_VERIFIED** — needs an outside registry Kyvo does not call (GST status, PAN-to-name, bank account
+  ownership, sanctions).
+
+`decision.json` lists, per identifier (PAN, GSTIN, company registration, bank account, TRC), the highest
+level reached and what was not verified. **The two-source rule:** APPROVED requires CONSISTENCY on PAN,
+legal name and bank account (international: registration number, legal name, bank account). Kyvo states
+plainly what it does not verify, rather than implying a registry check it never made.
+
+---
+
+## Policy in one file
+
+Every threshold and rule switch lives in `policy/kyvo_policy.yaml`: name similarity bands, OCR confidence
+gates, upload limits, reminder and stale days, risk weights, the reviewer allowlist, the IFSC bank-code
+table and free-mail domains. Each entry records its value, unit, why it is set there, the team that would
+own it (procurement, finance or compliance), and what changes if it is raised or lowered. `config.py`
+loads it; nothing tunable is hard-coded.
+
+The policy version stored on every decision is `KYVO-POLICY-<semver>+<sha256[:12]>` of the policy file.
+`policy/kyvo_policy.lock` pins the hash, and a test fails if the file changes without the semver being
+bumped (`python cli.py policy --lock` regenerates it). `policy/flags.yaml` holds one entry per flag code
+(severity, blocking, waiting_on, assurance, the vendor message and the reviewer step), so the vendor
+message and the reviewer instruction always come from one source.
+
+`python cli.py whatif --set name_similar=0.3` re-runs every scenario under a modified policy in a
+temporary workspace and prints what changes. Lowering the name similarity threshold reclassifies E4's
+material bank-holder mismatch as a minor variant, dropping its risk from HIGH to LOW; the real policy and
+workspace are untouched.
+
+---
+
+## Scenarios
+
+### Baseline checks (1 to 11)
+
+Happy path; wrong document; bank account holder mismatch; country / tax-ID scheme conflict; duplicate
+PAN; domestic PAN without GST; international (US EIN); unsupported country rule; scanned bank proof too
+poor to read; phone-photo documents read by OCR; a blurred photo held as unreadable.
+
+### Edge cases
+
+**E1. Sole proprietor paid into the owner's personal account.**
+*Situation:* the firm is "Sri Varahi Traders", the proprietor is "Ravi Kumar Reddy"; the PAN and the GST
+legal name are the proprietor, the bank account is in the proprietor's name, and the firm sits on the GST
+trade-name line.
+*Why naive automation fails:* it compares the firm name to the bank holder and flags a mismatch.
+*What Kyvo does:* on a proprietorship with a PAN 4th character of P it compares the proprietor name to
+the PAN, GST legal name and bank holder, and the firm name to the GST trade name.
+*Outcome:* APPROVED, with evidence that the account is in the proprietor's own name. A third-party holder
+still gives PENDING.
+
+**E2. Bank change after approval (the common payment-fraud route).**
+*Situation:* an approved vendor sends a bank-details change request with a new account.
+*Why naive automation fails:* it updates the account and keeps paying.
+*What Kyvo does:* payment_hold turns on at once, new bank proof is required, all bank checks re-run, the
+new account is checked against every other vendor, and the confirmation goes to the previously registered
+email, not the sender; a request from any other address raises risk to HIGH.
+*Outcome:* always PENDING, waiting on a reviewer, never auto-approved; the hold lifts only on a reviewer
+approval, and the old values stay in the audit trail.
+
+**E3. One bank account, two vendors.**
+*Situation:* a new vendor with a different PAN uses an IFSC and account already registered to another
+vendor.
+*Why naive automation fails:* it treats the two as unrelated.
+*What Kyvo does:* a dedicated `XR_BANK_SHARED` check (separate from identifier duplicates) references both
+vendors and routes to a reviewer. E3b: if that account is on the blocklist, it is REJECTED automatically
+with the written reason.
+*Outcome:* PENDING and HIGH risk (E3), or REJECTED (E3b).
+
+**E4. A reply that fixes the asked item and breaks another.**
+*Situation:* day 0 a bank-holder mismatch holds the submission; day 2 the vendor sends a cheque in the
+right name but with a different IFSC; day 4 a clean cheque arrives.
+*Why naive automation fails:* it either re-approves on the first reply or loses track of the open asks.
+*What Kyvo does:* run 2 resolves the holder ask and opens an IFSC ask (still PENDING); run 3 approves.
+The follow-up ledger records the whole sequence across the three runs.
+*Outcome:* PENDING, then APPROVED.
+
+---
+
+## Evaluation
+
+`python cli.py eval` writes `out/eval/eval.json` and `eval.md`:
+
+- **Extraction accuracy** per field and per read method (PDF text, OCR), exact match after the same
+  normalisation the rules use, against `sample_data/ground_truth.json`. Fields a document does not print
+  are excluded and listed.
+- **Decision accuracy**: the expected status versus the actual one, per scenario.
+- **Errors split in two, never blended**: unsafe errors (approved when it should not be, which must be
+  zero) and friction errors (held when it should have passed).
+- **Degradation sweep**: the PAN card and bank proof are re-rendered as photos at five blur levels and
+  three resolutions and run through the full workflow. As reading degrades, outcomes move from APPROVED
+  to PENDING, never to a wrong APPROVED. Unsafe errors stay at zero.
+
+Tesseract OCR is optional. Without it, photo and scan documents are held for a reviewer rather than
+guessed at, so the scanned and phone-photo scenarios are PENDING and the eval reports it.
+
+---
+
+## Connecting a real mailbox
+
+By default nothing leaves the machine. To read a real inbox, set `IMAP_HOST`, `IMAP_USER` and
+`IMAP_PASSWORD` and fetch with the IMAP adapter; to actually send, set `KYVO_SEND=1` and the `SMTP_*`
+variables. Kyvo still refuses to send to `.example` and other never-send domains. Reviewer commands are
+only honoured from the addresses on the policy allowlist.
+
+---
+
+## What it does not verify
+
+Kyvo performs format and consistency checks only. It does not confirm a PAN or GSTIN against a government
+registry, it does not establish bank-account ownership, and it does not run a sanctions check. Every
+decision says so, and the per-identifier assurance makes the limits explicit. These are deliberate
+boundaries, not missing features.
+
+---
+
+## Layout
+
+| Area | Files |
+| --- | --- |
+| Policy | `policy/kyvo_policy.yaml`, `policy/flags.yaml`, `policy/blocklist.yaml`, `policy/kyvo_policy.lock` |
+| Engine | `config.py`, `extraction.py`, `validation.py`, `assurance.py`, `decision_engine.py`, `workflow.py`, `communication.py`, `database.py` |
+| Automation | `inbox.py`, `mailer.py`, `clock.py`, `lifecycle.py`, `outputs.py`, `demo.py`, `cli.py` |
+| Measurement and site | `evaluation.py`, `whatif.py`, `site_build.py`, `build_site.py` |
+| Contracts and data | `schemas/`, `examples/`, `sample_data/` (with `ground_truth.json`) |
+| Optional viewer | `app.py`, `portal.py` (`requirements-viewer.txt`) |
+
+MIT licensed. All names, identifiers and documents are fictional test data.
