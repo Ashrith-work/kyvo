@@ -69,19 +69,27 @@ def extraction_accuracy(conn, scen, ids, gt):
     for sid in RUN_ORDER:
         subid = ids[sid]
         docs = {d["id"]: d for d in db.rows(conn, "SELECT id, expected_type, extraction_state FROM documents WHERE submission_id=?", (subid,))}
-        read = {}
-        for f in db.rows(conn, "SELECT document_id, field, value FROM extracted_fields WHERE submission_id=? AND provenance IN ('extracted','vendor_resubmitted')", (subid,)):
+        primary, llm = {}, []
+        for f in db.rows(conn, "SELECT document_id, field, value, method FROM extracted_fields WHERE submission_id=? AND provenance IN ('extracted','vendor_resubmitted')", (subid,)):
             d = docs.get(f["document_id"])
-            if d:
-                read[(d["expected_type"], f["field"])] = f["value"]
+            if not d:
+                continue
+            if f["method"] == "llm":            # Part K: measured as a third read method
+                llm.append((d["expected_type"], f["field"], f["value"]))
+            else:
+                primary[(d["expected_type"], f["field"])] = f["value"]
         for doc_type, fields in gt.get(sid, {}).items():
             d = next((dd for dd in docs.values() if dd["expected_type"] == doc_type), None)
             method = "ocr" if (d and d["extraction_state"] == "OCR") else "pdf_text"
             for field, truth in fields.items():
-                got = read.get((doc_type, field))
+                got = primary.get((doc_type, field))
                 ok = bool(got) and _norm(field, got) == _norm(field, truth)
                 _bump(by_method, method, ok)
                 _bump(by_field, field, ok)
+        for doc_type, field, value in llm:
+            truth = gt.get(sid, {}).get(doc_type, {}).get(field)
+            if truth is not None:
+                _bump(by_method, "llm", _norm(field, value) == _norm(field, truth))
     # fields a document does not print are excluded from accuracy; list them per scenario
     for sid in RUN_ORDER:
         miss = []
@@ -178,7 +186,8 @@ def run(conn=None, sample_dir=None, out_root="out"):
         "summary": {"status_accuracy": decision["status_accuracy"], "unsafe_errors": decision["unsafe_errors"],
                     "friction_errors": decision["friction_errors"], "sweep_unsafe_errors": sweep["unsafe_errors"],
                     "pdf_text_accuracy": extraction["by_method"].get("pdf_text", {}).get("accuracy"),
-                    "ocr_accuracy": extraction["by_method"].get("ocr", {}).get("accuracy")},
+                    "ocr_accuracy": extraction["by_method"].get("ocr", {}).get("accuracy"),
+                    "llm_accuracy": extraction["by_method"].get("llm", {}).get("accuracy")},
     }
     out_dir = os.path.join(out_root, "eval")
     os.makedirs(out_dir, exist_ok=True)
